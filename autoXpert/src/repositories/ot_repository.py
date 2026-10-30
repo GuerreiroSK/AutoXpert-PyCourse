@@ -1,4 +1,4 @@
-from models.ordem_trabalho import OrdemTrabalho
+from src.models.ordem_trabalho_model import OrdemTrabalho
 
 class OrdemTrabalhoRepository:
 

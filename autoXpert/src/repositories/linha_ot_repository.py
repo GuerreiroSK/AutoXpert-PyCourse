@@ -1,4 +1,4 @@
-from models.linha_ot import LinhaOT
+from src.models.linha_ot_model import LinhaOT
 
 
 class LinhaOTRepository:
