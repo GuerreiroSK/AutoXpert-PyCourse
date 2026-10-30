@@ -1,16 +1,16 @@
 from datetime import datetime, date
 
 from src.models.ordem_trabalho_model import OrdemTrabalho
-from src.models.linha_ot_model import LinhaOT
+
 
 class OrdemTrabalhoService:
-    # Regras de negócio das ordens de trabalho e das suas linhas.
+    # Regras de negócio das ordens de trabalho.
+    # As linhas de uma OT são tratadas à parte, no LinhaOTService (linha_ot_service.py).
     # Não tem SQL (isso é dos repositórios) nem print/input (isso é das views).
     # Os erros de validação são ValueError, com mensagens prontas a mostrar ao utilizador.
 
-    def __init__(self, repo_ot, repo_linha):
+    def __init__(self, repo_ot):
         self.repo_ot = repo_ot
-        self.repo_linha = repo_linha
 
     # ---------- Validações auxiliares ----------
 
@@ -30,8 +30,9 @@ class OrdemTrabalhoService:
             raise ValueError("OT não encontrada: " + str(id_ot))
         return ot
 
-    # Uma OT entregue já não pode ser alterada
-    def _garantir_editavel(self, ot):
+    # Uma OT entregue já não pode ser alterada.
+    # É público porque o LinhaOTService também o usa antes de mexer nas linhas da OT.
+    def garantir_editavel(self, ot):
         if ot.estado == OrdemTrabalho.ESTADO_ENTREGUE:
             raise ValueError("A OT " + str(ot.id_ot)
                              + " já foi entregue e não pode ser alterada")
@@ -68,7 +69,7 @@ class OrdemTrabalhoService:
             raise ValueError("Estado inválido: " + str(novo_estado))
         if novo_estado == ot.estado:
             return ot
-        self._garantir_editavel(ot)
+        self.garantir_editavel(ot)
 
         if novo_estado == OrdemTrabalho.ESTADO_ENTREGUE:
             if ot.estado != OrdemTrabalho.ESTADO_CONCLUIDA:
@@ -90,67 +91,25 @@ class OrdemTrabalhoService:
     # RF05: troca o técnico responsável
     def atribuir_tecnico(self, id_ot, id_tecnico):
         ot = self._obter_ot_existente(id_ot)
-        self._garantir_editavel(ot)
+        self.garantir_editavel(ot)
         if id_tecnico is None:
             raise ValueError("Tem de indicar o técnico responsável")
         self.repo_ot.atribuir_tecnico(id_ot, id_tecnico)
         ot.id_tecnico = id_tecnico
         return ot
 
-    # ---------- Linhas da OT ----------
-
-    # RF04 + RF13: adiciona uma linha e recalcula o custo da OT.
-    # Uma linha de peça tem de indicar a peça (rastreabilidade, RNF03);
-    # uma linha de mão-de-obra não tem peça.
-    def adicionar_linha(self, id_ot, tipo, descricao, quantidade, preco_unitario,
-                        horas_trabalhadas=None, id_peca=None):
-        ot = self._obter_ot_existente(id_ot)
-        self._garantir_editavel(ot)
-
-        if descricao is None or descricao.strip() == "":
-            raise ValueError("A descrição da linha é obrigatória")
-        if quantidade is None or quantidade <= 0:
-            raise ValueError("A quantidade tem de ser maior que zero")
-        if preco_unitario is None or preco_unitario < 0:
-            raise ValueError("O preço unitário não pode ser negativo")
-        if tipo == LinhaOT.TIPO_PECA and id_peca is None:
-            raise ValueError("Uma linha de peça tem de indicar a peça usada")
-        if tipo == LinhaOT.TIPO_MAO_OBRA and id_peca is not None:
-            raise ValueError("Uma linha de mão-de-obra não pode ter peça")
-
-        linha = LinhaOT(id_ot, tipo, descricao.strip(), quantidade, preco_unitario,
-                        horas_trabalhadas=horas_trabalhadas, id_peca=id_peca)
-        self.repo_linha.inserir(linha)
-        self.recalcular_custo(id_ot)
-        return linha
-
-    # Remove uma linha e recalcula o custo da OT
-    def remover_linha(self, id_linha):
-        linha = self.repo_linha.procurar_por_id(id_linha)
-        if linha is None:
-            raise ValueError("Linha não encontrada: " + str(id_linha))
-        ot = self._obter_ot_existente(linha.id_ot)
-        self._garantir_editavel(ot)
-        self.repo_linha.apagar(id_linha)
-        self.recalcular_custo(linha.id_ot)
-
-    # RF13: soma o valor de todas as linhas, guarda o total na OT e devolve-o
-    def recalcular_custo(self, id_ot):
-        total = 0
-        for linha in self.repo_linha.listar_por_ot(id_ot):
-            total = total + linha.subtotal()
-        total = round(total, 2)
-        self.repo_ot.atualizar_custo_total(id_ot, total)
-        return total
+    # RF13: guarda o custo total da OT. O valor é calculado pelo LinhaOTService
+    # a partir das linhas da OT, por isso aqui só se valida e se grava.
+    def atualizar_custo_total(self, id_ot, custo_total):
+        if custo_total is None or custo_total < 0:
+            raise ValueError("O custo total não pode ser negativo")
+        self._obter_ot_existente(id_ot)
+        self.repo_ot.atualizar_custo_total(id_ot, custo_total)
 
     # ---------- Consultas ----------
 
     def obter_ot(self, id_ot):
         return self._obter_ot_existente(id_ot)
-
-    def listar_linhas(self, id_ot):
-        self._obter_ot_existente(id_ot)
-        return self.repo_linha.listar_por_ot(id_ot)
 
     # RF14
     def listar_em_curso(self):
