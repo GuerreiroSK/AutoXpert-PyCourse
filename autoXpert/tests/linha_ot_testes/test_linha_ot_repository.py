@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 from src.models.linha_ot_model import LinhaOT
 from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.repositories.linha_ot_repository import LinhaOTRepository
@@ -37,17 +37,17 @@ class TesteLinhaOTRepository(unittest.TestCase):
 
     def test_procurar_por_id(self):
         linha = self._peca(self.ot1.id_ot)
-        lida = self.repo.procurar_por_id(linha.id_linha)
+        lida = self.repo.obter_por_id(linha.id_linha)
         self.assertEqual(lida.descricao, "Pastilhas")
         self.assertEqual(lida.id_peca, 1)
         self.assertIsNone(lida.horas_trabalhadas)
-        self.assertIsNone(self.repo.procurar_por_id(99))
+        self.assertIsNone(self.repo.obter_por_id(99))
 
     def test_listar_e_listar_por_ot(self):
         self._mao_obra(self.ot1.id_ot)
         self._peca(self.ot1.id_ot)
         self._peca(self.ot2.id_ot)
-        self.assertEqual(len(self.repo.listar()), 3)
+        self.assertEqual(len(self.repo.listar_todos()), 3)
         self.assertEqual(len(self.repo.listar_por_ot(self.ot1.id_ot)), 2)
         self.assertEqual(len(self.repo.listar_por_ot(self.ot2.id_ot)), 1)
         self.assertEqual(self.repo.listar_por_ot(99), [])
@@ -68,18 +68,18 @@ class TesteLinhaOTRepository(unittest.TestCase):
         linha = self._peca(self.ot1.id_ot)
         linha.quantidade = 4
         self.assertTrue(self.repo.atualizar(linha))
-        self.assertEqual(self.repo.procurar_por_id(linha.id_linha).quantidade, 4)
+        self.assertEqual(self.repo.obter_por_id(linha.id_linha).quantidade, 4)
 
     def test_apagar(self):
         linha = self._peca(self.ot1.id_ot)
-        self.assertTrue(self.repo.apagar(linha.id_linha))
-        self.assertFalse(self.repo.apagar(linha.id_linha))
+        self.assertTrue(self.repo.eliminar(linha.id_linha))
+        self.assertFalse(self.repo.eliminar(linha.id_linha))
 
     def test_apagar_por_ot(self):
         self._mao_obra(self.ot1.id_ot)
         self._peca(self.ot1.id_ot)
         self._peca(self.ot2.id_ot)
-        self.assertEqual(self.repo.apagar_por_ot(self.ot1.id_ot), 2)
+        self.assertEqual(self.repo.eliminar_por_ot(self.ot1.id_ot), 2)
         self.assertEqual(self.repo.listar_por_ot(self.ot1.id_ot), [])
         self.assertEqual(len(self.repo.listar_por_ot(self.ot2.id_ot)), 1)
 

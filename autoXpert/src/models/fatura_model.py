@@ -18,4 +18,4 @@ class Fatura:
         self.metodo_pagamento = metodo_pagamento
 
     def __str__(self):
-        return f"Fatura {self.id_fatura} - Ordem de Trabalho {self.id_ot}"
+        return "Fatura " + str(self.id_fatura) + " - Ordem de Trabalho " + str(self.id_ot)

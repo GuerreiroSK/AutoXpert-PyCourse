@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from datetime import date
 
 from src.services.fatura_service import FaturaService
-from src.models.fatura_models import Fatura
+from src.models.fatura_model import Fatura
 
 
 class TestFaturaService(unittest.TestCase):
@@ -275,7 +275,3 @@ class TestFaturaService(unittest.TestCase):
             self.svc.gerar_por_ot(1)
 
         self.mock_repo.inserir.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()

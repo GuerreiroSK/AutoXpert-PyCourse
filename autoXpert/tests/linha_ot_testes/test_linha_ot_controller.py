@@ -6,6 +6,8 @@ from src.services.ot_service import OrdemTrabalhoService
 from src.services.linha_ot_service import LinhaOTService
 from src.controllers.ot_controller import OrdemTrabalhoController
 from src.controllers.linha_ot_controller import LinhaOTController
+from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
+from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
@@ -14,7 +16,9 @@ class TesteLinhaOTController(unittest.TestCase):
 
     def setUp(self):
         self.conexao = criar_conexao_teste()
-        ot_service = OrdemTrabalhoService(OrdemTrabalhoRepository(self.conexao))
+        repo_ot = OrdemTrabalhoRepository(self.conexao)
+        log_service = LogAlteracaoOTService(LogAlteracaoOTRepository(self.conexao), repo_ot)
+        ot_service = OrdemTrabalhoService(repo_ot, log_service)
         linha_service = LinhaOTService(LinhaOTRepository(self.conexao), ot_service)
         self.ot_controller = OrdemTrabalhoController(ot_service)
         self.controller = LinhaOTController(linha_service)

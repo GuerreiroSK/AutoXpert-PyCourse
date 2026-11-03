@@ -1,4 +1,4 @@
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 
 class OrdemTrabalhoRepository:
 
@@ -53,11 +53,11 @@ class OrdemTrabalhoRepository:
         ot.id_ot = cursor.lastrowid
         return ot
 
-    def listar(self):
+    def listar_todos(self):
         return self._listar_com_sql(self.BASE_SELECT + self.ORDENACAO, [])
 
     # Devolve a OT ou None se o id não existir
-    def procurar_por_id(self, id_ot):
+    def obter_por_id(self, id_ot):
         lista = self._listar_com_sql(self.BASE_SELECT + " WHERE o.id_ot = ?", [id_ot])
         if len(lista) == 0:
             return None
@@ -77,8 +77,8 @@ class OrdemTrabalhoRepository:
         self.conexao.commit()
         return cursor.rowcount > 0
 
-    # Só funciona se a OT já não tiver linhas (apagar primeiro as linhas)
-    def apagar(self, id_ot):
+    # Só funciona se a OT já não tiver linhas (eliminar primeiro as linhas)
+    def eliminar(self, id_ot):
         cursor = self.conexao.cursor()
         cursor.execute("DELETE FROM OrdemTrabalho WHERE id_ot = ?", (id_ot,))
         self.conexao.commit()

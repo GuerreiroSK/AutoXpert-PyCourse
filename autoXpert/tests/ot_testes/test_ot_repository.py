@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 from src.models.linha_ot_model import LinhaOT
 from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.repositories.linha_ot_repository import LinhaOTRepository
@@ -41,14 +41,14 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
 
     def test_procurar_por_id(self):
         ot = self._criar()
-        lida = self.repo.procurar_por_id(ot.id_ot)
+        lida = self.repo.obter_por_id(ot.id_ot)
         self.assertEqual(lida.descricao_avaria, "Avaria de teste")
         self.assertEqual(lida.estado, "Pendente")
         self.assertIsNone(lida.data_saida_real)
         self.assertEqual(lida.custo_total, 0)
 
     def test_procurar_por_id_inexistente(self):
-        self.assertIsNone(self.repo.procurar_por_id(99))
+        self.assertIsNone(self.repo.obter_por_id(99))
 
     def test_atualizar(self):
         ot = self._criar()
@@ -56,7 +56,7 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
         ot.data_saida_real = "2026-10-29"
         ot.custo_total = 120.5
         self.assertTrue(self.repo.atualizar(ot))
-        lida = self.repo.procurar_por_id(ot.id_ot)
+        lida = self.repo.obter_por_id(ot.id_ot)
         self.assertEqual(lida.estado, "Concluída")
         self.assertEqual(lida.data_saida_real, "2026-10-29")
         self.assertEqual(lida.custo_total, 120.5)
@@ -67,15 +67,15 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
 
     def test_apagar(self):
         ot = self._criar()
-        self.assertTrue(self.repo.apagar(ot.id_ot))
-        self.assertFalse(self.repo.apagar(ot.id_ot))
-        self.assertEqual(self.repo.listar(), [])
+        self.assertTrue(self.repo.eliminar(ot.id_ot))
+        self.assertFalse(self.repo.eliminar(ot.id_ot))
+        self.assertEqual(self.repo.listar_todos(), [])
 
     def test_apagar_com_linhas_e_recusado(self):
         ot = self._criar()
         self.linhas.inserir(LinhaOT(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "x", 1, 10))
         with self.assertRaises(sqlite3.IntegrityError):
-            self.repo.apagar(ot.id_ot)
+            self.repo.eliminar(ot.id_ot)
 
     def test_viatura_inexistente_e_recusada(self):
         with self.assertRaises(sqlite3.IntegrityError):
@@ -86,7 +86,7 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
     def test_mudar_estado(self):
         ot = self._criar()
         self.assertTrue(self.repo.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_EM_CURSO))
-        self.assertEqual(self.repo.procurar_por_id(ot.id_ot).estado, "Em Curso")
+        self.assertEqual(self.repo.obter_por_id(ot.id_ot).estado, "Em Curso")
 
     def test_mudar_estado_inexistente(self):
         self.assertFalse(self.repo.mudar_estado(99, OrdemTrabalho.ESTADO_EM_CURSO))
@@ -95,12 +95,12 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
         ot = self._criar()
         with self.assertRaises(ValueError):
             self.repo.mudar_estado(ot.id_ot, "Concluida")
-        self.assertEqual(self.repo.procurar_por_id(ot.id_ot).estado, "Pendente")
+        self.assertEqual(self.repo.obter_por_id(ot.id_ot).estado, "Pendente")
 
     def test_atribuir_tecnico(self):
         ot = self._criar()
         self.assertTrue(self.repo.atribuir_tecnico(ot.id_ot, 2))
-        self.assertEqual(self.repo.procurar_por_id(ot.id_ot).id_tecnico, 2)
+        self.assertEqual(self.repo.obter_por_id(ot.id_ot).id_tecnico, 2)
 
     def test_atribuir_tecnico_inexistente_e_recusado(self):
         ot = self._criar()
@@ -110,7 +110,7 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
     def test_atualizar_custo_total(self):
         ot = self._criar()
         self.assertTrue(self.repo.atualizar_custo_total(ot.id_ot, 55.25))
-        self.assertEqual(self.repo.procurar_por_id(ot.id_ot).custo_total, 55.25)
+        self.assertEqual(self.repo.obter_por_id(ot.id_ot).custo_total, 55.25)
         self.assertFalse(self.repo.atualizar_custo_total(99, 1))
 
     # ----- Pesquisas -----
@@ -119,7 +119,7 @@ class TesteOrdemTrabalhoRepository(unittest.TestCase):
         self._criar(data_entrada="2026-10-05")
         self._criar(data_entrada="2026-10-20")
         self._criar(data_entrada="2026-10-10")
-        self.assertEqual(self._ids(self.repo.listar()), [2, 3, 1])
+        self.assertEqual(self._ids(self.repo.listar_todos()), [2, 3, 1])
 
     def test_listar_por_viatura(self):
         self._criar(id_viatura=1, data_entrada="2026-10-05")

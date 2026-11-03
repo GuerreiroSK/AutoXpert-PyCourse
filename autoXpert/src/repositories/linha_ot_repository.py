@@ -46,7 +46,7 @@ class LinhaOTRepository:
         linha_ot.id_linha = cursor.lastrowid
         return linha_ot
 
-    def listar(self):
+    def listar_todos(self):
         return self._listar_com_sql(self.BASE_SELECT + " ORDER BY id_linha", [])
 
     # Linhas de uma OT (usado para mostrar o detalhe e para calcular o custo, RF13)
@@ -61,7 +61,7 @@ class LinhaOTRepository:
             [id_peca])
 
     # Devolve a linha ou None se o id não existir
-    def procurar_por_id(self, id_linha):
+    def obter_por_id(self, id_linha):
         lista = self._listar_com_sql(
             self.BASE_SELECT + " WHERE id_linha = ?", [id_linha])
         if len(lista) == 0:
@@ -82,15 +82,15 @@ class LinhaOTRepository:
         self.conexao.commit()
         return cursor.rowcount > 0
 
-    def apagar(self, id_linha):
+    def eliminar(self, id_linha):
         cursor = self.conexao.cursor()
         cursor.execute("DELETE FROM LinhaOT WHERE id_linha = ?", (id_linha,))
         self.conexao.commit()
         return cursor.rowcount > 0
 
-    # Apaga todas as linhas de uma OT (fazer antes de apagar a própria OT).
+    # Elimina todas as linhas de uma OT (fazer antes de eliminar a própria OT).
     # Devolve quantas linhas foram apagadas.
-    def apagar_por_ot(self, id_ot):
+    def eliminar_por_ot(self, id_ot):
         cursor = self.conexao.cursor()
         cursor.execute("DELETE FROM LinhaOT WHERE id_ot = ?", (id_ot,))
         self.conexao.commit()

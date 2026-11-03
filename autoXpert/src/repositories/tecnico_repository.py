@@ -1,54 +1,74 @@
-from contextlib import closing
-import sqlite3
-
-from db.connection import get_connection
+from src.models.tecnico_model import Tecnico
 
 
-def criar_tecnico(nome: str, especialidade: str | None, custo_hora: float, ativo: bool = True) -> int:
-    """Guarda um tecnico e devolve o identificador criado."""
-    with closing(get_connection()) as conn:
-        with conn:
-            cursor = conn.execute(
-                """INSERT INTO Tecnico (nome, especialidade, custo_hora, ativo)
-                VALUES (?, ?, ?, ?)""",
-                (nome, especialidade, custo_hora, int(ativo)),
-            )
-            return cursor.lastrowid
+class TecnicoRepository:
+    # Todo o SQL da tabela Tecnico. A ligação é recebida de fora (como nos outros
+    # repositórios) e tem de devolver linhas acessíveis pelo nome da coluna.
 
+    def __init__(self, conexao):
+        self.conexao = conexao
 
-def listar_tecnicos(apenas_ativos: bool = False) -> list[sqlite3.Row]:
-    consulta = "SELECT * FROM Tecnico"
-    if apenas_ativos:
-        consulta += " WHERE ativo = 1"
-    with closing(get_connection()) as conn:
-        return conn.execute(consulta + " ORDER BY nome, id_tecnico").fetchall()
+    # Converte uma linha da base de dados num objeto Tecnico
+    def _linha_para_objeto(self, linha):
+        return Tecnico(
+            nome=linha["nome"],
+            especialidade=linha["especialidade"],
+            custo_hora=linha["custo_hora"],
+            ativo=bool(linha["ativo"]),
+            id_tecnico=linha["id_tecnico"]
+        )
 
+    # Grava o técnico e preenche o id gerado pela base de dados
+    def inserir(self, tecnico):
+        cursor = self.conexao.execute(
+            "INSERT INTO Tecnico (nome, especialidade, custo_hora, ativo) "
+            "VALUES (?, ?, ?, ?)",
+            (tecnico.nome, tecnico.especialidade, tecnico.custo_hora,
+             int(tecnico.ativo))
+        )
+        self.conexao.commit()
+        tecnico.id_tecnico = cursor.lastrowid
+        return tecnico
 
-def obter_tecnico(id_tecnico: int) -> sqlite3.Row | None:
-    with closing(get_connection()) as conn:
-        return conn.execute(
-            "SELECT * FROM Tecnico WHERE id_tecnico = ?", (id_tecnico,)
+    # Todos os técnicos (ou só os ativos), por ordem alfabética
+    def listar_todos(self, apenas_ativos=False):
+        sql = "SELECT * FROM Tecnico"
+        if apenas_ativos:
+            sql += " WHERE ativo = 1"
+        sql += " ORDER BY nome, id_tecnico"
+
+        tecnicos = []
+        for linha in self.conexao.execute(sql).fetchall():
+            tecnicos.append(self._linha_para_objeto(linha))
+        return tecnicos
+
+    # Devolve o técnico ou None se o id não existir
+    def obter_por_id(self, id_tecnico):
+        linha = self.conexao.execute(
+            "SELECT * FROM Tecnico WHERE id_tecnico = ?",
+            (id_tecnico,)
         ).fetchone()
 
+        if linha is None:
+            return None
+        return self._linha_para_objeto(linha)
 
-def atualizar_tecnico(
-    id_tecnico: int, nome: str, especialidade: str | None,
-    custo_hora: float, ativo: bool,
-) -> bool:
-    with closing(get_connection()) as conn:
-        with conn:
-            cursor = conn.execute(
-                """UPDATE Tecnico SET nome = ?, especialidade = ?,
-                custo_hora = ?, ativo = ? WHERE id_tecnico = ?""",
-                (nome, especialidade, custo_hora, int(ativo), id_tecnico),
-            )
-            return cursor.rowcount == 1
+    # Devolve True se o técnico existia
+    def atualizar(self, tecnico):
+        cursor = self.conexao.execute(
+            "UPDATE Tecnico SET nome = ?, especialidade = ?, custo_hora = ?, "
+            "ativo = ? WHERE id_tecnico = ?",
+            (tecnico.nome, tecnico.especialidade, tecnico.custo_hora,
+             int(tecnico.ativo), tecnico.id_tecnico)
+        )
+        self.conexao.commit()
+        return cursor.rowcount > 0
 
-
-def eliminar_tecnico(id_tecnico: int) -> bool:
-    with closing(get_connection()) as conn:
-        with conn:
-            cursor = conn.execute(
-                "DELETE FROM Tecnico WHERE id_tecnico = ?", (id_tecnico,)
-            )
-            return cursor.rowcount == 1
+    # Devolve True se o técnico existia
+    def eliminar(self, id_tecnico):
+        cursor = self.conexao.execute(
+            "DELETE FROM Tecnico WHERE id_tecnico = ?",
+            (id_tecnico,)
+        )
+        self.conexao.commit()
+        return cursor.rowcount > 0

@@ -42,12 +42,12 @@ class LinhaOTService:
 
     # Remove uma linha e recalcula o custo da OT
     def remover_linha(self, id_linha):
-        linha = self.repo_linha.procurar_por_id(id_linha)
+        linha = self.repo_linha.obter_por_id(id_linha)
         if linha is None:
             raise ValueError("Linha não encontrada: " + str(id_linha))
         ot = self.ot_service.obter_ot(linha.id_ot)
         self.ot_service.garantir_editavel(ot)
-        self.repo_linha.apagar(id_linha)
+        self.repo_linha.eliminar(id_linha)
         self.recalcular_custo(linha.id_ot)
 
     # RF13: soma o valor de todas as linhas, guarda o total na OT e devolve-o

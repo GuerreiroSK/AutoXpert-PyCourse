@@ -3,7 +3,7 @@ import unittest
 from datetime import date, timedelta
 from unittest.mock import MagicMock
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 from src.services.ot_service import OrdemTrabalhoService
 
 
@@ -13,7 +13,8 @@ class TestOrdemTrabalhoService(unittest.TestCase):
     def setUp(self):
         # Executado antes de CADA teste: cria um mock limpo
         self.mock_repo = MagicMock()
-        self.svc = OrdemTrabalhoService(self.mock_repo)
+        self.mock_log = MagicMock()
+        self.svc = OrdemTrabalhoService(self.mock_repo, self.mock_log)
         # Datas prontas a usar nos testes
         self.hoje = date.today().isoformat()
         self.ontem = (date.today() - timedelta(days=1)).isoformat()
@@ -26,7 +27,7 @@ class TestOrdemTrabalhoService(unittest.TestCase):
 
     # Faz o repositório devolver esta OT quando o service a procurar
     def _repo_devolve(self, ot):
-        self.mock_repo.procurar_por_id.return_value = ot
+        self.mock_repo.obter_por_id.return_value = ot
 
     # ----- criar_ot: validações (assertRaises + assert_not_called) -----
 
@@ -247,6 +248,53 @@ class TestOrdemTrabalhoService(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.svc.mudar_estado(1, "Em Curso")
 
+    # ----- Registo no Log -----
+
+    def test_mudar_estado_regista_no_log(self):
+        self._repo_devolve(self._ot(estado="Pendente"))
+
+        self.svc.mudar_estado(1, "Em Curso")
+
+        self.mock_log.registar_alteracao.assert_called_once_with(
+            1, "estado", "Pendente", "Em Curso")
+
+    def test_entregar_regista_no_log(self):
+        self._repo_devolve(self._ot(estado="Concluída"))
+
+        self.svc.mudar_estado(1, "Entregue", self.hoje)
+
+        self.mock_log.registar_alteracao.assert_called_once_with(
+            1, "estado", "Concluída", "Entregue")
+
+    def test_mudar_para_o_mesmo_estado_nao_regista_no_log(self):
+        self._repo_devolve(self._ot(estado="Pendente"))
+
+        self.svc.mudar_estado(1, "Pendente")
+
+        self.mock_log.registar_alteracao.assert_not_called()
+
+    def test_estado_recusado_nao_regista_no_log(self):
+        self._repo_devolve(self._ot(estado="Pendente"))
+
+        with self.assertRaises(ValueError):
+            self.svc.mudar_estado(1, "Entregue")
+
+        self.mock_log.registar_alteracao.assert_not_called()
+
+    def test_atribuir_tecnico_regista_no_log(self):
+        self._repo_devolve(self._ot(id_tecnico=1))
+
+        self.svc.atribuir_tecnico(1, 2)
+
+        self.mock_log.registar_alteracao.assert_called_once_with(1, "técnico", "1", "2")
+
+    def test_atribuir_o_mesmo_tecnico_nao_regista_no_log(self):
+        self._repo_devolve(self._ot(id_tecnico=1))
+
+        self.svc.atribuir_tecnico(1, 1)
+
+        self.mock_log.registar_alteracao.assert_not_called()
+
     # ----- atribuir_tecnico -----
 
     def test_atribuir_tecnico_chama_o_repo_com_os_ids_certos(self):
@@ -335,7 +383,7 @@ class TestOrdemTrabalhoService(unittest.TestCase):
         resultado = self.svc.obter_ot(7)
 
         self.assertEqual(resultado.id_ot, 7)
-        self.mock_repo.procurar_por_id.assert_called_once_with(7)
+        self.mock_repo.obter_por_id.assert_called_once_with(7)
 
     def test_obter_ot_inexistente_levanta_erro(self):
         self._repo_devolve(None)
@@ -402,7 +450,3 @@ class TestOrdemTrabalhoService(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.svc.pesquisar_ots(**filtros)
                 self.mock_repo.pesquisar.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -4,6 +4,8 @@ from datetime import date
 from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.services.ot_service import OrdemTrabalhoService
 from src.controllers.ot_controller import OrdemTrabalhoController
+from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
+from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
@@ -12,7 +14,9 @@ class TesteOrdemTrabalhoController(unittest.TestCase):
 
     def setUp(self):
         self.conexao = criar_conexao_teste()
-        service = OrdemTrabalhoService(OrdemTrabalhoRepository(self.conexao))
+        repo_ot = OrdemTrabalhoRepository(self.conexao)
+        log_service = LogAlteracaoOTService(LogAlteracaoOTRepository(self.conexao), repo_ot)
+        service = OrdemTrabalhoService(repo_ot, log_service)
         self.controller = OrdemTrabalhoController(service)
 
     def tearDown(self):

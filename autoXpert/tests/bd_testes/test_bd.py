@@ -87,12 +87,12 @@ class TesteBaseDeDados(unittest.TestCase):
                           "VALUES ('AA-11-BB', 'Fiat', 'Punto', 1)")
 
     def test_quilometros_negativos_sao_recusados(self):
-        self._deve_falhar("INSERT INTO Viatura (matricula, marca, modelo, km_estrada, "
+        self._deve_falhar("INSERT INTO Viatura (matricula, marca, modelo, km_entrada, "
                           "id_cliente) VALUES ('EE-33-FF', 'Fiat', 'Punto', -5, 1)")
 
     def test_quilometros_por_defeito_sao_zero(self):
         km = self.conexao.execute(
-            "SELECT km_estrada FROM Viatura WHERE matricula = 'AA-11-BB'").fetchone()[0]
+            "SELECT km_entrada FROM Viatura WHERE matricula = 'AA-11-BB'").fetchone()[0]
         self.assertEqual(km, 0)
 
     # ----- Técnico -----

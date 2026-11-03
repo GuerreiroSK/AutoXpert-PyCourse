@@ -1,4 +1,6 @@
-from tkinter import ttk, messagebox
+from tkinter import ttk
+
+from src.views.estilo import mostrar_erro, mostrar_info, perguntar_sim_nao
 
 
 class PainelLinhasOT:
@@ -89,7 +91,7 @@ class PainelLinhasOT:
             self.tabela.delete(item)
 
     def mostrar_erro(self, mensagem):
-        messagebox.showerror("Erro", mensagem, parent=self.quadro)
+        mostrar_erro(self.quadro, "Erro", mensagem)
 
     # ================= Usado pela janela das OTs =================
 
@@ -117,8 +119,7 @@ class PainelLinhasOT:
     # RF04 + RF13: o custo total é recalculado pelo service
     def adicionar_linha(self):
         if self.id_ot_atual is None:
-            messagebox.showinfo("Atenção", "Selecione primeiro uma OT na lista.",
-                                parent=self.quadro)
+            mostrar_info(self.quadro, "Atenção", "Selecione primeiro uma OT na lista.")
             return
         id_ot = self.id_ot_atual
         ok, resultado = self.controller.adicionar_linha(
@@ -136,16 +137,14 @@ class PainelLinhasOT:
 
     def remover_linha(self):
         if self.id_ot_atual is None:
-            messagebox.showinfo("Atenção", "Selecione primeiro uma OT na lista.",
-                                parent=self.quadro)
+            mostrar_info(self.quadro, "Atenção", "Selecione primeiro uma OT na lista.")
             return
         selecionadas = self.tabela.selection()
         if len(selecionadas) == 0:
-            messagebox.showinfo("Atenção", "Selecione primeiro uma linha na tabela.",
-                                parent=self.quadro)
+            mostrar_info(self.quadro, "Atenção", "Selecione primeiro uma linha na tabela.")
             return
-        if not messagebox.askyesno("Remover linha", "Remover a linha selecionada?",
-                                   parent=self.quadro):
+        if not perguntar_sim_nao(self.quadro, "Remover linha",
+                                 "Remover a linha selecionada?"):
             return
         id_ot = self.id_ot_atual
         ok, resultado = self.controller.remover_linha(int(selecionadas[0]))

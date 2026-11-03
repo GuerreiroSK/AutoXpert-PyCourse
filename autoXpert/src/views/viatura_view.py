@@ -65,7 +65,7 @@ class ViaturaView:
             ("modelo", "Modelo"),
             ("ano", "Ano"),
             ("cor", "Cor"),
-            ("km_estrada", "Quilómetros"),
+            ("km_entrada", "KM da viatura"),
         ]
 
         opcoes = self.opcoes_clientes()
@@ -89,7 +89,7 @@ class ViaturaView:
         resultado["modelo"] = dados["modelo"]
         resultado["ano"] = self.inteiro_ou_none(dados["ano"])
         resultado["cor"] = dados["cor"] or None
-        resultado["km_estrada"] = int(dados["km_estrada"] or "0")
+        resultado["km_entrada"] = int(dados["km_entrada"] or "0")
         resultado["id_cliente"] = int(dados["id_cliente"].split(" - ")[0])
         return resultado
 
@@ -106,11 +106,11 @@ class ViaturaView:
             ("modelo", "Modelo"),
             ("ano", "Ano"),
             ("cor", "Cor"),
-            ("km_estrada", "Quilómetros"),
+            ("km_entrada", "KM da viatura"),
         ]
         valores = {"matricula": viatura.matricula, "marca": viatura.marca,
                    "modelo": viatura.modelo, "ano": viatura.ano, "cor": viatura.cor,
-                   "km_estrada": viatura.km_estrada}
+                   "km_entrada": viatura.km_entrada}
 
         dados = pedir_dados(self.pai(), "Atualizar viatura " + str(viatura.id_viatura),
                             campos, valores, "Guardar", self.validar_registo)
@@ -123,7 +123,7 @@ class ViaturaView:
             "modelo": dados["modelo"],
             "ano": self.inteiro_ou_none(dados["ano"]),
             "cor": dados["cor"] or None,
-            "km_estrada": int(dados["km_estrada"] or "0"),
+            "km_entrada": int(dados["km_entrada"] or "0"),
         }
 
     def confirmar_eliminacao(self):
@@ -140,7 +140,7 @@ class ViaturaView:
             ("Modelo", viatura.modelo),
             ("Ano", viatura.ano),
             ("Cor", viatura.cor),
-            ("Quilómetros", viatura.km_estrada),
+            ("KM da viatura", viatura.km_entrada),
             ("ID do cliente", viatura.id_cliente),
         ]
         mostrar_detalhe(self.pai(), "Dados da viatura", pares)
@@ -157,13 +157,13 @@ class ViaturaView:
             ("modelo", "Modelo", 130, "w"),
             ("ano", "Ano", 60, "center"),
             ("cor", "Cor", 90, "center"),
-            ("km", "Km", 90, "e"),
+            ("km", "KM", 90, "e"),
             ("cliente", "Cliente", 70, "center"),
         ]
         linhas = []
         for v in viaturas:
             linhas.append((v.id_viatura, v.matricula, v.marca, v.modelo, texto(v.ano),
-                           texto(v.cor), v.km_estrada, v.id_cliente))
+                           texto(v.cor), v.km_entrada, v.id_cliente))
         mostrar_tabela(self.pai(), "Lista de viaturas", colunas, linhas, 780, 440)
 
     def mostrar_historico(self, historico):
@@ -183,9 +183,9 @@ class ViaturaView:
         ]
         linhas = []
         for ot in historico:
-            linhas.append((ot["id_ot"], ot["data_entrada"], ot["data_prev_saida"],
-                           texto(ot["data_saida_real"]), ot["estado"],
-                           ot["descricao_avaria"], ot["custo_total"]))
+            linhas.append((ot.id_ot, ot.data_entrada, ot.data_prev_saida,
+                           texto(ot.data_saida_real), ot.estado,
+                           ot.descricao_avaria, ot.custo_total))
         mostrar_tabela(self.pai(), "Histórico da viatura", colunas, linhas, 860, 440)
 
     # O controller chama estes dois com (título, mensagem)
@@ -211,8 +211,8 @@ class ViaturaView:
             return "O modelo é obrigatório."
         if dados["ano"] != "" and not dados["ano"].isdigit():
             return "O ano tem de ser um número inteiro."
-        if dados["km_estrada"] != "" and not dados["km_estrada"].isdigit():
-            return "Os quilómetros têm de ser um número inteiro (0 ou mais)."
+        if dados["km_entrada"] != "" and not dados["km_entrada"].isdigit():
+            return "Os KM da viatura têm de ser um número inteiro (0 ou mais)."
         if "id_cliente" in dados:
             if not dados["id_cliente"].split(" - ")[0].isdigit():
                 return "O ID do cliente tem de ser um número inteiro."

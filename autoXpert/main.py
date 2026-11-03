@@ -30,10 +30,12 @@ from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from src.controllers.log_alteracao_ot_controller import LogAlteracaoOTController
 from src.views.log_alteracao_ot_view import LogAlteracaoOTView
 
+from src.repositories.tecnico_repository import TecnicoRepository
 from src.services.tecnico_service import TecnicoService
 from src.controllers.tecnico_controller import TecnicoController
 from src.views.tecnico_view import TecnicoView
 
+from src.repositories.peca_repository import PecaRepository
 from src.services.peca_service import PecaService
 from src.controllers.peca_controller import PecaController
 from src.views.peca_view import PecaView
@@ -45,6 +47,7 @@ from src.views.menu_principal_view import MenuPrincipalView
 class AplicacaoAutoXpert:
     # Liga todas as camadas (repositório -> service -> controller -> view) de cada
     # módulo e entrega ao menu principal a função que abre cada um.
+    # Todos os repositórios partilham a mesma ligação à base de dados.
 
     def __init__(self, raiz):
         self.raiz = raiz
@@ -52,40 +55,46 @@ class AplicacaoAutoXpert:
         self.janela_tecnicos = None
         self.janela_pecas = None
 
-        # Ligação partilhada pelos módulos das OTs, viaturas e registo de alterações
         self.conexao = get_connection()
 
+        # Repositórios (só eles têm SQL)
+        cliente_repo = ClienteRepository(self.conexao)
+        viatura_repo = ViaturaRepository(self.conexao)
+        tecnico_repo = TecnicoRepository(self.conexao)
+        peca_repo = PecaRepository(self.conexao)
+        ot_repo = OrdemTrabalhoRepository(self.conexao)
+        linha_repo = LinhaOTRepository(self.conexao)
+        fatura_repo = FaturaRepository(self.conexao)
+        log_repo = LogAlteracaoOTRepository(self.conexao)
+
         # Clientes
-        cliente_service = ClienteService(ClienteRepository())
-        cliente_controller = ClienteController(cliente_service)
+        cliente_controller = ClienteController(ClienteService(cliente_repo))
         self.cliente_view = ClienteView(raiz, cliente_controller)
 
         # Viaturas (o formulário mostra a lista de clientes para escolher)
-        viatura_service = ViaturaService(ViaturaRepository(self.conexao), self.conexao)
+        viatura_service = ViaturaService(viatura_repo, cliente_repo, ot_repo)
         viatura_view = ViaturaView(raiz, cliente_controller.listar_clientes)
         self.viatura_controller = ViaturaController(viatura_service, viatura_view)
 
+        # Técnicos e peças
+        self.tecnico_controller = TecnicoController(TecnicoService(tecnico_repo))
+        self.peca_controller = PecaController(PecaService(peca_repo))
+
         # Ordens de trabalho (o service das linhas usa o service das OTs)
-        ot_service = OrdemTrabalhoService(OrdemTrabalhoRepository(self.conexao))
-        linha_service = LinhaOTService(LinhaOTRepository(self.conexao), ot_service)
+        log_service = LogAlteracaoOTService(log_repo, ot_repo)
+        ot_service = OrdemTrabalhoService(ot_repo, log_service)
+        linha_service = LinhaOTService(linha_repo, ot_service)
         self.ot_controller = OrdemTrabalhoController(ot_service)
         self.linha_controller = LinhaOTController(linha_service)
 
         # Faturação
-        fatura_service = FaturaService(FaturaRepository())
-        self.fatura_view = FaturaView(raiz, FaturaController(fatura_service))
+        fatura_controller = FaturaController(FaturaService(fatura_repo))
+        self.fatura_view = FaturaView(raiz, fatura_controller)
 
         # Registo de alterações das OTs
-        log_service = LogAlteracaoOTService(
-            LogAlteracaoOTRepository(self.conexao), self.conexao)
         log_view = LogAlteracaoOTView(raiz)
         self.log_controller = LogAlteracaoOTController(log_service, log_view)
 
-        # Técnicos e peças (os repositórios abrem a sua própria ligação)
-        self.tecnico_controller = TecnicoController(TecnicoService())
-        self.peca_controller = PecaController(PecaService())
-
-        # None = módulo que ainda não existe (aparece desativado)
         entradas = [
             ("Gestão de clientes", self.cliente_view.menu),
             ("Gestão de viaturas", self.viatura_controller.menu),
@@ -141,5 +150,4 @@ def main():
     aplicacao.fechar()
 
 
-if __name__ == "__main__":
-    main()
+main()

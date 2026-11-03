@@ -1,18 +1,23 @@
 from math import isfinite
 
 
-def texto_obrigatorio(valor: str, campo: str) -> str:
+# Devolve o texto sem espaços nas pontas; levanta erro se ficar vazio
+def texto_obrigatorio(valor, campo):
     texto = valor.strip()
-    if not texto:
-        raise ValueError(f"O campo '{campo}' e obrigatorio.")
+    if texto == "":
+        raise ValueError("O campo '" + campo + "' é obrigatório.")
     return texto
 
 
-def validar_valor(valor: float, campo: str) -> None:
+# O valor (preço, custo...) tem de ser um número normal, igual ou superior a zero
+def validar_valor(valor, campo):
     if not isfinite(valor) or valor < 0:
-        raise ValueError(f"O campo '{campo}' deve ser um numero finito, igual ou superior a zero.")
+        raise ValueError("O campo '" + campo
+                         + "' deve ser um número igual ou superior a zero.")
 
 
-def validar_quantidade(valor: int, campo: str) -> None:
+# A quantidade tem de ser um número inteiro, igual ou superior a zero
+def validar_quantidade(valor, campo):
     if isinstance(valor, bool) or not isinstance(valor, int) or valor < 0:
-        raise ValueError(f"O campo '{campo}' deve ser um inteiro igual ou superior a zero.")
+        raise ValueError("O campo '" + campo
+                         + "' deve ser um inteiro igual ou superior a zero.")
