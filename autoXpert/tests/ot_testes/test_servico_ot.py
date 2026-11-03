@@ -1,251 +1,408 @@
 import sqlite3
 import unittest
-from datetime import date
+from datetime import date, timedelta
+from unittest.mock import MagicMock
 
 from src.models.ordem_trabalho_model import OrdemTrabalho
-from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.services.ot_service import OrdemTrabalhoService
-from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
-class TesteOrdemTrabalhoService(unittest.TestCase):
+class TestOrdemTrabalhoService(unittest.TestCase):
+    # Testes unitários: o repositório é um MagicMock, por isso não há base de dados.
 
     def setUp(self):
-        self.conexao = criar_conexao_teste()
-        self.repo_ot = OrdemTrabalhoRepository(self.conexao)
-        self.service = OrdemTrabalhoService(self.repo_ot)
+        # Executado antes de CADA teste: cria um mock limpo
+        self.mock_repo = MagicMock()
+        self.svc = OrdemTrabalhoService(self.mock_repo)
+        # Datas prontas a usar nos testes
+        self.hoje = date.today().isoformat()
+        self.ontem = (date.today() - timedelta(days=1)).isoformat()
+        self.amanha = (date.today() + timedelta(days=1)).isoformat()
 
-    def tearDown(self):
-        self.conexao.close()
+    # Cria uma OT (como se viesse do repositório) no estado indicado
+    def _ot(self, estado=OrdemTrabalho.ESTADO_PENDENTE, id_ot=1, id_tecnico=1):
+        return OrdemTrabalho(1, id_tecnico, self.ontem, self.amanha,
+                             "Travões a chiar", estado=estado, id_ot=id_ot)
 
-    def _criar_ot(self, id_viatura=1, id_tecnico=1, data_entrada="2026-10-28",
-                  data_prev_saida="2026-10-30"):
-        return self.service.criar_ot(id_viatura, id_tecnico, data_entrada,
-                                     data_prev_saida, "Travões a chiar")
+    # Faz o repositório devolver esta OT quando o service a procurar
+    def _repo_devolve(self, ot):
+        self.mock_repo.procurar_por_id.return_value = ot
 
-    # OT que passou por Concluída e Entregue (já não pode ser alterada)
-    def _criar_ot_entregue(self):
-        ot = self._criar_ot()
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE,
-                                  data_saida_real="2026-10-30")
-        return ot
+    # ----- criar_ot: validações (assertRaises + assert_not_called) -----
 
-    def _ids(self, lista):
-        resultado = []
-        for ot in lista:
-            resultado.append(ot.id_ot)
-        return resultado
+    def test_criar_sem_viatura_levanta_erro(self):
+        with self.assertRaises(ValueError):
+            self.svc.criar_ot(None, 1, self.hoje, self.amanha, "Avaria")
+        self.mock_repo.inserir.assert_not_called()
 
-    def test_criar_ot(self):
-        ot = self._criar_ot()
-        self.assertEqual(ot.id_ot, 1)
-        self.assertEqual(ot.estado, "Pendente")
+    def test_criar_sem_tecnico_levanta_erro(self):
+        with self.assertRaises(ValueError):
+            self.svc.criar_ot(1, None, self.hoje, self.amanha, "Avaria")
+        self.mock_repo.inserir.assert_not_called()
+
+    def test_criar_com_descricao_invalida_levanta_erro(self):
+        casos = [("", "vazia"), ("   ", "só espaços"), (None, "None")]
+        for descricao, nome in casos:
+            with self.subTest(caso=nome):
+                with self.assertRaises(ValueError):
+                    self.svc.criar_ot(1, 1, self.hoje, self.amanha, descricao)
+                self.mock_repo.inserir.assert_not_called()
+
+    def test_criar_com_datas_invalidas_levanta_erro(self):
+        casos = [
+            ("28/10/2026", "formato português"),
+            ("2026-13-01", "mês 13"),
+            ("2026-02-30", "dia inexistente"),
+            ("2026-1-5", "sem zeros"),
+            ("", "vazia"),
+            (None, "None"),
+        ]
+        for data, nome in casos:
+            with self.subTest(caso=nome):
+                with self.assertRaises(ValueError):
+                    self.svc.criar_ot(1, 1, data, self.amanha, "Avaria")
+                with self.assertRaises(ValueError):
+                    self.svc.criar_ot(1, 1, self.hoje, data, "Avaria")
+                self.mock_repo.inserir.assert_not_called()
+
+    def test_criar_com_saida_anterior_a_entrada_levanta_erro(self):
+        with self.assertRaises(ValueError):
+            self.svc.criar_ot(1, 1, "2026-10-28", "2026-10-27", "Avaria")
+        self.mock_repo.inserir.assert_not_called()
+
+    # ----- criar_ot: caminho feliz -----
+
+    def test_criar_chama_o_repo_uma_vez(self):
+        self.svc.criar_ot(1, 1, self.hoje, self.amanha, "Avaria")
+        self.mock_repo.inserir.assert_called_once()
+
+    def test_criar_no_mesmo_dia_e_valido(self):
+        self.svc.criar_ot(1, 1, self.hoje, self.hoje, "Avaria")
+        self.mock_repo.inserir.assert_called_once()
+
+    def test_criar_passa_a_ot_com_os_dados_certos(self):
+        self.svc.criar_ot(3, 2, self.hoje, self.amanha, "  Ruído no motor  ")
+
+        ot = self.mock_repo.inserir.call_args[0][0]
+        self.assertEqual(ot.id_viatura, 3)
+        self.assertEqual(ot.id_tecnico, 2)
+        self.assertEqual(ot.data_entrada, self.hoje)
+        self.assertEqual(ot.data_prev_saida, self.amanha)
+        self.assertEqual(ot.descricao_avaria, "Ruído no motor")   # sem espaços
+        self.assertEqual(ot.estado, "Pendente")                    # estado por defeito
         self.assertEqual(ot.custo_total, 0)
-        gravada = self.repo_ot.procurar_por_id(1)
-        self.assertEqual(gravada.id_tecnico, 1)
-        self.assertEqual(gravada.descricao_avaria, "Travões a chiar")
+        self.assertIsNone(ot.id_ot)                                # ainda sem ID do repo
 
-    def test_criar_ot_tira_espacos_da_descricao(self):
-        ot = self.service.criar_ot(1, 1, "2026-10-28", "2026-10-30", "  Ruído  ")
-        self.assertEqual(ot.descricao_avaria, "Ruído")
+    def test_criar_devolve_a_ot_do_repositorio(self):
+        ot_gravada = self._ot(id_ot=42)
+        self.mock_repo.inserir.return_value = ot_gravada
 
-    def test_criar_ot_sem_tecnico(self):
-        with self.assertRaises(ValueError):
-            self._criar_ot(id_tecnico=None)
+        resultado = self.svc.criar_ot(1, 1, self.hoje, self.amanha, "Avaria")
 
-    def test_criar_ot_sem_viatura(self):
-        with self.assertRaises(ValueError):
-            self._criar_ot(id_viatura=None)
+        self.assertEqual(resultado.id_ot, 42)
 
-    def test_criar_ot_com_datas_invalidas(self):
-        with self.assertRaises(ValueError):
-            self._criar_ot(data_entrada="28/10/2026")
-        with self.assertRaises(ValueError):
-            self._criar_ot(data_entrada="2026-1-5")      # falta o zero
-        with self.assertRaises(ValueError):
-            self._criar_ot(data_prev_saida="2026-02-30")  # dia inexistente
-        with self.assertRaises(ValueError):
-            self._criar_ot(data_entrada=None)
+    # ----- criar_ot: erros da base de dados (side_effect) -----
 
-    def test_criar_ot_saida_anterior_a_entrada(self):
-        with self.assertRaises(ValueError):
-            self._criar_ot(data_entrada="2026-10-30", data_prev_saida="2026-10-28")
+    def test_criar_com_viatura_inexistente_propaga_o_erro(self):
+        self.mock_repo.inserir.side_effect = sqlite3.IntegrityError("FOREIGN KEY constraint failed")
 
-    def test_criar_ot_no_mesmo_dia_e_valido(self):
-        ot = self._criar_ot(data_entrada="2026-10-28", data_prev_saida="2026-10-28")
-        self.assertEqual(ot.id_ot, 1)
-
-    def test_criar_ot_sem_descricao(self):
-        with self.assertRaises(ValueError):
-            self.service.criar_ot(1, 1, "2026-10-28", "2026-10-30", "   ")
-        with self.assertRaises(ValueError):
-            self.service.criar_ot(1, 1, "2026-10-28", "2026-10-30", None)
-
-    def test_criar_ot_com_viatura_ou_tecnico_inexistente(self):
         with self.assertRaises(sqlite3.IntegrityError):
-            self._criar_ot(id_viatura=99)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self._criar_ot(id_tecnico=99)
+            self.svc.criar_ot(99, 1, self.hoje, self.amanha, "Avaria")
 
-    def test_mudancas_de_estado_sao_flexiveis(self):
-        ot = self._criar_ot()
-        sequencia = [OrdemTrabalho.ESTADO_EM_CURSO,
-                     OrdemTrabalho.ESTADO_AGUARDA_PECA,
-                     OrdemTrabalho.ESTADO_EM_CURSO,
-                     OrdemTrabalho.ESTADO_PENDENTE,      # trabalho atrasou: volta atrás
-                     OrdemTrabalho.ESTADO_CONCLUIDA,
-                     OrdemTrabalho.ESTADO_EM_CURSO]      # reaberta
-        for estado in sequencia:
-            resultado = self.service.mudar_estado(ot.id_ot, estado)
-            self.assertEqual(resultado.estado, estado)
-            self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).estado, estado)
+    def test_criar_com_bd_em_baixo_propaga_o_erro(self):
+        self.mock_repo.inserir.side_effect = RuntimeError("Ligação à BD perdida")
 
-    def test_data_saida_real_fica_vazia_antes_de_entregue(self):
-        ot = self._criar_ot()
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        self.assertIsNone(self.repo_ot.procurar_por_id(ot.id_ot).data_saida_real)
+        with self.assertRaises(RuntimeError):
+            self.svc.criar_ot(1, 1, self.hoje, self.amanha, "Avaria")
 
-    def test_entregar_preenche_a_data_de_saida_real(self):
-        ot = self._criar_ot()
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        resultado = self.service.mudar_estado(
-            ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE, data_saida_real="2026-10-31")
-        self.assertEqual(resultado.estado, "Entregue")
-        gravada = self.repo_ot.procurar_por_id(ot.id_ot)
-        self.assertEqual(gravada.estado, "Entregue")
-        self.assertEqual(gravada.data_saida_real, "2026-10-31")
+    # ----- mudar_estado: validações -----
 
-    def test_entregar_sem_data_usa_a_data_de_hoje(self):
-        ot = self._criar_ot(data_entrada="2026-01-01", data_prev_saida="2026-01-05")
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE)
-        gravada = self.repo_ot.procurar_por_id(ot.id_ot)
-        self.assertEqual(gravada.data_saida_real, date.today().isoformat())
+    def test_mudar_estado_de_ot_inexistente_levanta_erro(self):
+        self._repo_devolve(None)
 
-    def test_so_se_entrega_uma_ot_concluida(self):
-        ot = self._criar_ot()
         with self.assertRaises(ValueError):
-            self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE)
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_EM_CURSO)
-        with self.assertRaises(ValueError):
-            self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE)
-        gravada = self.repo_ot.procurar_por_id(ot.id_ot)
-        self.assertEqual(gravada.estado, "Em Curso")
-        self.assertIsNone(gravada.data_saida_real)
+            self.svc.mudar_estado(99, "Em Curso")
 
-    def test_data_de_saida_real_invalida(self):
-        ot = self._criar_ot(data_entrada="2026-10-28")
-        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        with self.assertRaises(ValueError):
-            self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE,
-                                      data_saida_real="31/10/2026")
-        with self.assertRaises(ValueError):  # anterior à entrada
-            self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE,
-                                      data_saida_real="2026-10-27")
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).estado, "Concluída")
+        self.mock_repo.mudar_estado.assert_not_called()
+        self.mock_repo.atualizar.assert_not_called()
 
-    def test_ot_entregue_nao_muda_de_estado(self):
-        ot = self._criar_ot_entregue()
-        with self.assertRaises(ValueError):
-            self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_EM_CURSO)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).estado, "Entregue")
+    def test_mudar_para_estado_invalido_levanta_erro(self):
+        self._repo_devolve(self._ot())
+
+        for estado in ("Cancelada", "", None, "pendente"):
+            with self.subTest(estado=estado):
+                with self.assertRaises(ValueError):
+                    self.svc.mudar_estado(1, estado)
+                self.mock_repo.mudar_estado.assert_not_called()
 
     def test_mudar_para_o_mesmo_estado_nao_faz_nada(self):
-        ot = self._criar_ot()
-        resultado = self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_PENDENTE)
-        self.assertEqual(resultado.estado, "Pendente")
+        self._repo_devolve(self._ot(estado="Em Curso"))
 
-    def test_mudar_estado_invalido_ou_ot_inexistente(self):
-        ot = self._criar_ot()
-        with self.assertRaises(ValueError):
-            self.service.mudar_estado(ot.id_ot, "Concluida")
-        with self.assertRaises(ValueError):
-            self.service.mudar_estado(99, OrdemTrabalho.ESTADO_EM_CURSO)
+        resultado = self.svc.mudar_estado(1, "Em Curso")
 
-    def test_atribuir_tecnico(self):
-        ot = self._criar_ot(id_tecnico=1)
-        resultado = self.service.atribuir_tecnico(ot.id_ot, 2)
+        self.assertEqual(resultado.estado, "Em Curso")
+        self.mock_repo.mudar_estado.assert_not_called()
+        self.mock_repo.atualizar.assert_not_called()
+
+    # ----- mudar_estado: as mudanças são flexíveis -----
+
+    def test_estados_intermedios_podem_mudar_em_qualquer_ordem(self):
+        # Em cada caso: (estado de partida, novo estado)
+        casos = [
+            ("Pendente", "Em Curso"),
+            ("Em Curso", "Aguarda Peça"),
+            ("Aguarda Peça", "Em Curso"),
+            ("Em Curso", "Pendente"),      # voltar atrás, se o trabalho atrasar
+            ("Concluída", "Em Curso"),     # reabrir uma OT concluída
+            ("Pendente", "Concluída"),
+        ]
+        for partida, novo in casos:
+            with self.subTest(partida=partida, novo=novo):
+                self.mock_repo.reset_mock()
+                self._repo_devolve(self._ot(estado=partida))
+
+                resultado = self.svc.mudar_estado(1, novo)
+
+                self.assertEqual(resultado.estado, novo)
+                self.mock_repo.mudar_estado.assert_called_once_with(1, novo)
+
+    def test_data_saida_real_fica_vazia_antes_de_entregue(self):
+        self._repo_devolve(self._ot(estado="Em Curso"))
+
+        resultado = self.svc.mudar_estado(1, "Concluída")
+
+        self.assertIsNone(resultado.data_saida_real)
+        self.mock_repo.atualizar.assert_not_called()
+
+    # ----- mudar_estado: entregar -----
+
+    def test_so_se_entrega_uma_ot_concluida(self):
+        for partida in ("Pendente", "Em Curso", "Aguarda Peça"):
+            with self.subTest(partida=partida):
+                self.mock_repo.reset_mock()
+                self._repo_devolve(self._ot(estado=partida))
+
+                with self.assertRaises(ValueError):
+                    self.svc.mudar_estado(1, "Entregue", self.hoje)
+
+                self.mock_repo.atualizar.assert_not_called()
+                self.mock_repo.mudar_estado.assert_not_called()
+
+    def test_entregar_grava_o_estado_e_a_data_de_saida(self):
+        self._repo_devolve(self._ot(estado="Concluída"))
+
+        resultado = self.svc.mudar_estado(1, "Entregue", self.hoje)
+
+        self.mock_repo.atualizar.assert_called_once()
+        gravada = self.mock_repo.atualizar.call_args[0][0]
+        self.assertEqual(gravada.estado, "Entregue")
+        self.assertEqual(gravada.data_saida_real, self.hoje)
+        self.assertEqual(resultado.data_saida_real, self.hoje)
+        self.mock_repo.mudar_estado.assert_not_called()
+
+    def test_entregar_sem_data_usa_a_data_de_hoje(self):
+        self._repo_devolve(self._ot(estado="Concluída"))
+
+        self.svc.mudar_estado(1, "Entregue")
+
+        gravada = self.mock_repo.atualizar.call_args[0][0]
+        self.assertEqual(gravada.data_saida_real, self.hoje)
+
+    def test_entregar_com_data_invalida_levanta_erro(self):
+        for data in ("31/10/2026", "2026-02-30", "abc"):
+            with self.subTest(data=data):
+                self.mock_repo.reset_mock()
+                self._repo_devolve(self._ot(estado="Concluída"))
+
+                with self.assertRaises(ValueError):
+                    self.svc.mudar_estado(1, "Entregue", data)
+
+                self.mock_repo.atualizar.assert_not_called()
+
+    def test_entregar_com_saida_anterior_a_entrada_levanta_erro(self):
+        ot = OrdemTrabalho(1, 1, "2026-10-28", "2026-10-30", "Avaria",
+                           estado="Concluída", id_ot=1)
+        self._repo_devolve(ot)
+
+        with self.assertRaises(ValueError):
+            self.svc.mudar_estado(1, "Entregue", "2026-10-27")
+
+        self.mock_repo.atualizar.assert_not_called()
+
+    def test_ot_entregue_nao_muda_de_estado(self):
+        self._repo_devolve(self._ot(estado="Entregue"))
+
+        for novo in ("Pendente", "Em Curso", "Concluída"):
+            with self.subTest(novo=novo):
+                with self.assertRaises(ValueError):
+                    self.svc.mudar_estado(1, novo)
+
+        self.mock_repo.mudar_estado.assert_not_called()
+        self.mock_repo.atualizar.assert_not_called()
+
+    def test_erro_da_bd_ao_mudar_estado_propaga(self):
+        self._repo_devolve(self._ot(estado="Pendente"))
+        self.mock_repo.mudar_estado.side_effect = RuntimeError("BD off")
+
+        with self.assertRaises(RuntimeError):
+            self.svc.mudar_estado(1, "Em Curso")
+
+    # ----- atribuir_tecnico -----
+
+    def test_atribuir_tecnico_chama_o_repo_com_os_ids_certos(self):
+        self._repo_devolve(self._ot(id_tecnico=1))
+
+        resultado = self.svc.atribuir_tecnico(1, 2)
+
+        self.mock_repo.atribuir_tecnico.assert_called_once_with(1, 2)
         self.assertEqual(resultado.id_tecnico, 2)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).id_tecnico, 2)
 
     def test_atribuir_tecnico_casos_invalidos(self):
-        ot = self._criar_ot()
+        # OT inexistente
+        self._repo_devolve(None)
         with self.assertRaises(ValueError):
-            self.service.atribuir_tecnico(ot.id_ot, None)
+            self.svc.atribuir_tecnico(99, 2)
+
+        # sem técnico
+        self._repo_devolve(self._ot())
         with self.assertRaises(ValueError):
-            self.service.atribuir_tecnico(99, 1)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.service.atribuir_tecnico(ot.id_ot, 77)
+            self.svc.atribuir_tecnico(1, None)
+
+        self.mock_repo.atribuir_tecnico.assert_not_called()
 
     def test_nao_se_troca_tecnico_de_ot_entregue(self):
-        ot = self._criar_ot_entregue()
+        self._repo_devolve(self._ot(estado="Entregue"))
+
         with self.assertRaises(ValueError):
-            self.service.atribuir_tecnico(ot.id_ot, 2)
+            self.svc.atribuir_tecnico(1, 2)
 
-    def test_obter_ot(self):
-        ot = self._criar_ot()
-        self.assertEqual(self.service.obter_ot(ot.id_ot).id_ot, ot.id_ot)
+        self.mock_repo.atribuir_tecnico.assert_not_called()
+
+    def test_tecnico_inexistente_propaga_o_erro_da_bd(self):
+        self._repo_devolve(self._ot())
+        self.mock_repo.atribuir_tecnico.side_effect = sqlite3.IntegrityError("FOREIGN KEY")
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.svc.atribuir_tecnico(1, 99)
+
+    # ----- atualizar_custo_total e garantir_editavel -----
+
+    def test_atualizar_custo_total_grava_o_valor(self):
+        self._repo_devolve(self._ot())
+
+        self.svc.atualizar_custo_total(1, 123.45)
+
+        self.mock_repo.atualizar_custo_total.assert_called_once_with(1, 123.45)
+
+    def test_atualizar_custo_total_aceita_zero(self):
+        self._repo_devolve(self._ot())
+
+        self.svc.atualizar_custo_total(1, 0)
+
+        self.mock_repo.atualizar_custo_total.assert_called_once_with(1, 0)
+
+    def test_atualizar_custo_total_invalido_levanta_erro(self):
+        self._repo_devolve(self._ot())
+
+        for custo in (-1, -0.01, None):
+            with self.subTest(custo=custo):
+                with self.assertRaises(ValueError):
+                    self.svc.atualizar_custo_total(1, custo)
+                self.mock_repo.atualizar_custo_total.assert_not_called()
+
+    def test_atualizar_custo_total_de_ot_inexistente_levanta_erro(self):
+        self._repo_devolve(None)
+
         with self.assertRaises(ValueError):
-            self.service.obter_ot(99)
+            self.svc.atualizar_custo_total(99, 10)
 
-    def test_listar_em_curso(self):
-        a = self._criar_ot(data_entrada="2026-10-01", data_prev_saida="2026-10-10")
-        b = self._criar_ot(data_entrada="2026-10-02", data_prev_saida="2026-10-10")
-        self._criar_ot()  # fica Pendente
-        self.service.mudar_estado(a.id_ot, OrdemTrabalho.ESTADO_EM_CURSO)
-        self.service.mudar_estado(b.id_ot, OrdemTrabalho.ESTADO_AGUARDA_PECA)
-        self.assertEqual(self._ids(self.service.listar_em_curso()), [b.id_ot, a.id_ot])
+        self.mock_repo.atualizar_custo_total.assert_not_called()
 
-    def test_historico_por_matricula(self):
-        self._criar_ot(id_viatura=1)
-        self._criar_ot(id_viatura=2)
-        self._criar_ot(id_viatura=1, data_entrada="2026-10-29", data_prev_saida="2026-10-30")
-        self.assertEqual(self._ids(self.service.historico_por_matricula(" aa-11-bb ")), [3, 1])
-        self.assertEqual(self.service.historico_por_matricula("ZZ-00-ZZ"), [])
+    def test_garantir_editavel_aceita_todos_os_estados_menos_entregue(self):
+        for estado in ("Pendente", "Em Curso", "Aguarda Peça", "Concluída"):
+            with self.subTest(estado=estado):
+                self.svc.garantir_editavel(self._ot(estado=estado))   # não levanta erro
+
+    def test_garantir_editavel_recusa_ot_entregue(self):
         with self.assertRaises(ValueError):
-            self.service.historico_por_matricula("  ")
+            self.svc.garantir_editavel(self._ot(estado="Entregue"))
 
-    def test_pesquisar_ots(self):
-        a = self._criar_ot(id_tecnico=1, data_entrada="2026-10-05", data_prev_saida="2026-10-10")
-        b = self._criar_ot(id_tecnico=2, data_entrada="2026-10-20", data_prev_saida="2026-10-25")
-        self.service.mudar_estado(b.id_ot, OrdemTrabalho.ESTADO_EM_CURSO)
-        self.assertEqual(len(self.service.pesquisar_ots()), 2)
-        self.assertEqual(self._ids(self.service.pesquisar_ots(estado="Em Curso")), [b.id_ot])
-        self.assertEqual(self._ids(self.service.pesquisar_ots(id_tecnico=1)), [a.id_ot])
-        self.assertEqual(
-            self._ids(self.service.pesquisar_ots(data_inicio="2026-10-01", data_fim="2026-10-10")),
-            [a.id_ot])
+    # ----- consultas (return_value) -----
 
-    def test_pesquisar_ots_valida_os_filtros(self):
+    def test_obter_ot_devolve_a_ot_do_repositorio(self):
+        self._repo_devolve(self._ot(id_ot=7))
+
+        resultado = self.svc.obter_ot(7)
+
+        self.assertEqual(resultado.id_ot, 7)
+        self.mock_repo.procurar_por_id.assert_called_once_with(7)
+
+    def test_obter_ot_inexistente_levanta_erro(self):
+        self._repo_devolve(None)
+
         with self.assertRaises(ValueError):
-            self.service.pesquisar_ots(data_inicio="05/10/2026")
-        with self.assertRaises(ValueError):
-            self.service.pesquisar_ots(data_inicio="2026-10-20", data_fim="2026-10-10")
-        with self.assertRaises(ValueError):
-            self.service.pesquisar_ots(estado="Concluida")
+            self.svc.obter_ot(99)
 
-    # ----- custo total e OT editável (usados pelo LinhaOTService) -----
+    def test_listar_em_curso_devolve_a_lista_do_repo(self):
+        self.mock_repo.listar_em_curso.return_value = [self._ot(id_ot=1), self._ot(id_ot=2)]
 
-    def test_atualizar_custo_total(self):
-        ot = self._criar_ot()
-        self.service.atualizar_custo_total(ot.id_ot, 123.45)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 123.45)
-        self.service.atualizar_custo_total(ot.id_ot, 0)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
+        resultado = self.svc.listar_em_curso()
 
-    def test_atualizar_custo_total_casos_invalidos(self):
-        ot = self._criar_ot()
-        with self.assertRaises(ValueError):   # negativo
-            self.service.atualizar_custo_total(ot.id_ot, -1)
-        with self.assertRaises(ValueError):   # sem valor
-            self.service.atualizar_custo_total(ot.id_ot, None)
-        with self.assertRaises(ValueError):   # OT inexistente
-            self.service.atualizar_custo_total(99, 10)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
+        self.assertEqual(len(resultado), 2)
+        self.assertEqual(resultado[0].id_ot, 1)
+        self.mock_repo.listar_em_curso.assert_called_once()
 
-    def test_garantir_editavel(self):
-        self.service.garantir_editavel(self._criar_ot())   # Pendente: não levanta erro
-        entregue = self.service.obter_ot(self._criar_ot_entregue().id_ot)
-        with self.assertRaises(ValueError):
-            self.service.garantir_editavel(entregue)
+    def test_listar_em_curso_vazio(self):
+        self.mock_repo.listar_em_curso.return_value = []
+
+        self.assertEqual(self.svc.listar_em_curso(), [])
+
+    def test_historico_tira_espacos_da_matricula(self):
+        self.mock_repo.listar_por_matricula.return_value = [self._ot()]
+
+        resultado = self.svc.historico_por_matricula("  AA-11-BB  ")
+
+        self.assertEqual(len(resultado), 1)
+        self.mock_repo.listar_por_matricula.assert_called_once_with("AA-11-BB")
+
+    def test_historico_sem_matricula_levanta_erro(self):
+        for matricula in ("", "   ", None):
+            with self.subTest(matricula=matricula):
+                with self.assertRaises(ValueError):
+                    self.svc.historico_por_matricula(matricula)
+                self.mock_repo.listar_por_matricula.assert_not_called()
+
+    # ----- pesquisar_ots -----
+
+    def test_pesquisar_sem_filtros_passa_none_ao_repo(self):
+        self.mock_repo.pesquisar.return_value = []
+
+        self.svc.pesquisar_ots()
+
+        self.mock_repo.pesquisar.assert_called_once_with(None, None, None, None)
+
+    def test_pesquisar_passa_os_filtros_ao_repo(self):
+        self.mock_repo.pesquisar.return_value = [self._ot()]
+
+        resultado = self.svc.pesquisar_ots("2026-10-01", "2026-10-31", "Em Curso", 2)
+
+        self.assertEqual(len(resultado), 1)
+        self.mock_repo.pesquisar.assert_called_once_with(
+            "2026-10-01", "2026-10-31", "Em Curso", 2)
+
+    def test_pesquisar_com_filtros_invalidos_levanta_erro(self):
+        casos = [
+            ({"data_inicio": "05/10/2026"}, "data de início inválida"),
+            ({"data_fim": "2026-02-30"}, "data de fim inválida"),
+            ({"data_inicio": "2026-10-20", "data_fim": "2026-10-10"}, "início depois do fim"),
+            ({"estado": "Cancelada"}, "estado inválido"),
+        ]
+        for filtros, nome in casos:
+            with self.subTest(caso=nome):
+                with self.assertRaises(ValueError):
+                    self.svc.pesquisar_ots(**filtros)
+                self.mock_repo.pesquisar.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
