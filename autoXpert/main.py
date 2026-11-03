@@ -92,7 +92,15 @@ from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from src.controllers.log_alteracao_ot_controller import LogAlteracaoOTController
 from src.views.log_alteracao_ot_view import LogAlteracaoOTView
 
-from src.views.estilo import aplicar_estilo
+from src.services.tecnico_service import TecnicoService
+from src.controllers.tecnico_controller import TecnicoController
+from src.views.tecnico_view import TecnicoView
+
+from src.services.peca_service import PecaService
+from src.controllers.peca_controller import PecaController
+from src.views.peca_view import PecaView
+
+from src.views.estilo import aplicar_estilo, criar_janela, criar_cabecalho
 from src.views.menu_principal_view import MenuPrincipalView
 
 
@@ -103,6 +111,8 @@ class AplicacaoAutoXpert:
     def __init__(self, raiz):
         self.raiz = raiz
         self.janela_ots = None
+        self.janela_tecnicos = None
+        self.janela_pecas = None
 
         # Ligação partilhada pelos módulos das OTs, viaturas e registo de alterações
         self.conexao = get_connection()
@@ -133,17 +143,43 @@ class AplicacaoAutoXpert:
         log_view = LogAlteracaoOTView(raiz)
         self.log_controller = LogAlteracaoOTController(log_service, log_view)
 
+        # Técnicos e peças (os repositórios abrem a sua própria ligação)
+        self.tecnico_controller = TecnicoController(TecnicoService())
+        self.peca_controller = PecaController(PecaService())
+
         # None = módulo que ainda não existe (aparece desativado)
         entradas = [
             ("Gestão de clientes", self.cliente_view.menu),
             ("Gestão de viaturas", self.viatura_controller.menu),
-            ("Gestão de técnicos", None),
-            ("Gestão de peças", None),
+            ("Gestão de técnicos", self.abrir_tecnicos),
+            ("Gestão de peças", self.abrir_pecas),
             ("Ordens de trabalho", self.abrir_ots),
             ("Faturação", self.fatura_view.menu),
             ("Registo de alterações", self.log_controller.menu),
         ]
         MenuPrincipalView(raiz, entradas)
+
+    def abrir_tecnicos(self):
+        self.janela_tecnicos = self.abrir_pagina(
+            self.janela_tecnicos, "Gestão de Técnicos", 760, 520,
+            TecnicoView, self.tecnico_controller)
+
+    def abrir_pecas(self):
+        self.janela_pecas = self.abrir_pagina(
+            self.janela_pecas, "Gestão de Peças", 900, 700,
+            PecaView, self.peca_controller)
+
+    # Os módulos de técnicos e peças são "páginas" (ttk.Frame): aqui ficam numa janela
+    # própria com o mesmo cabeçalho das outras. Se já estiver aberta, passa para a frente.
+    def abrir_pagina(self, janela, titulo, largura, altura, classe_view, controller):
+        if janela is not None and janela.winfo_exists():
+            janela.lift()
+            return janela
+        janela = criar_janela(self.raiz, "AutoXpert - " + titulo, largura, altura)
+        criar_cabecalho(janela, titulo)
+        pagina = classe_view(janela, controller)
+        pagina.pack(fill="both", expand=True)
+        return janela
 
     def abrir_ots(self):
         # Se a janela já estiver aberta, traz-a para a frente
