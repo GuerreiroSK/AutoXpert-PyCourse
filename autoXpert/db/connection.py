@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 from pathlib import Path
 
@@ -13,5 +14,6 @@ def get_connection():
 def inicializar_bd():
     schema = Path(__file__).parent / "schema.sql"
 
-    with get_connection() as conn:
-        conn.executescript(schema.read_text(encoding="utf-8"))
+    with closing(get_connection()) as conn:
+        with conn:
+            conn.executescript(schema.read_text(encoding="utf-8"))
