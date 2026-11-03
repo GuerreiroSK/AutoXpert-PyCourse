@@ -173,35 +173,35 @@ class TestLinhaOTService(unittest.TestCase):
     # ----- remover_linha -----
 
     def test_remover_linha_inexistente_levanta_erro(self):
-        self.mock_repo.procurar_por_id.return_value = None
+        self.mock_repo.obter_por_id.return_value = None
 
         with self.assertRaises(ValueError):
             self.svc.remover_linha(99)
 
-        self.mock_repo.apagar.assert_not_called()
+        self.mock_repo.eliminar.assert_not_called()
         self.mock_ot_service.atualizar_custo_total.assert_not_called()
 
     def test_remover_linha_de_ot_entregue_levanta_erro(self):
-        self.mock_repo.procurar_por_id.return_value = self._linha(7)
+        self.mock_repo.obter_por_id.return_value = self._linha(7)
         self.mock_ot_service.garantir_editavel.side_effect = ValueError("OT já entregue")
 
         with self.assertRaises(ValueError):
             self.svc.remover_linha(7)
 
-        self.mock_repo.apagar.assert_not_called()
+        self.mock_repo.eliminar.assert_not_called()
         self.mock_ot_service.atualizar_custo_total.assert_not_called()
 
     def test_remover_apaga_a_linha_certa(self):
-        self.mock_repo.procurar_por_id.return_value = self._linha(7, id_ot=3)
+        self.mock_repo.obter_por_id.return_value = self._linha(7, id_ot=3)
         self.mock_repo.listar_por_ot.return_value = []
 
         self.svc.remover_linha(7)
 
-        self.mock_repo.apagar.assert_called_once_with(7)
+        self.mock_repo.eliminar.assert_called_once_with(7)
         self.mock_ot_service.obter_ot.assert_called_once_with(3)
 
     def test_remover_recalcula_o_custo_da_ot_da_linha(self):
-        self.mock_repo.procurar_por_id.return_value = self._linha(7, id_ot=3)
+        self.mock_repo.obter_por_id.return_value = self._linha(7, id_ot=3)
         self.mock_repo.listar_por_ot.return_value = [self._linha(8, id_ot=3, quantidade=1, preco=15.5)]
 
         self.svc.remover_linha(7)
@@ -210,7 +210,7 @@ class TestLinhaOTService(unittest.TestCase):
         self.mock_ot_service.atualizar_custo_total.assert_called_once_with(3, 15.5)
 
     def test_remover_a_ultima_linha_poe_o_custo_a_zero(self):
-        self.mock_repo.procurar_por_id.return_value = self._linha(7)
+        self.mock_repo.obter_por_id.return_value = self._linha(7)
         self.mock_repo.listar_por_ot.return_value = []
 
         self.svc.remover_linha(7)
@@ -218,8 +218,8 @@ class TestLinhaOTService(unittest.TestCase):
         self.mock_ot_service.atualizar_custo_total.assert_called_once_with(1, 0)
 
     def test_erro_da_bd_ao_apagar_propaga_e_nao_atualiza_o_custo(self):
-        self.mock_repo.procurar_por_id.return_value = self._linha(7)
-        self.mock_repo.apagar.side_effect = RuntimeError("BD off")
+        self.mock_repo.obter_por_id.return_value = self._linha(7)
+        self.mock_repo.eliminar.side_effect = RuntimeError("BD off")
 
         with self.assertRaises(RuntimeError):
             self.svc.remover_linha(7)
@@ -295,7 +295,3 @@ class TestLinhaOTService(unittest.TestCase):
             self.svc.listar_linhas(99)
 
         self.mock_repo.listar_por_ot.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()

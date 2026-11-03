@@ -1,21 +1,20 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.models.log_alteracao_ot import LogAlteracaoOT
+from src.models.log_alteracao_ot_model import LogAlteracaoOT
 from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 
 
 class TestLogAlteracaoOTService(unittest.TestCase):
 
     def setUp(self):
-        # Mock limpo antes de cada teste: nem a base de dados nem o repositório são reais
+        # Mocks limpos antes de cada teste: nem a base de dados nem os repositórios são reais
         self.mock_repo = MagicMock()
-        self.mock_conexao = MagicMock()
-        self.cursor = self.mock_conexao.cursor.return_value
-        # Por defeito, a OT existe (o service faz SELECT e chama fetchone)
-        self.cursor.fetchone.return_value = (1,)
+        self.mock_ot_repo = MagicMock()
+        # Por defeito, a OT existe
+        self.mock_ot_repo.obter_por_id.return_value = MagicMock()
 
-        self.svc = LogAlteracaoOTService(self.mock_repo, self.mock_conexao)
+        self.svc = LogAlteracaoOTService(self.mock_repo, self.mock_ot_repo)
 
     # ----- registar_alteracao: validações -----
 
@@ -24,7 +23,7 @@ class TestLogAlteracaoOTService(unittest.TestCase):
             with self.subTest(id_ot=id_ot):
                 with self.assertRaises(ValueError):
                     self.svc.registar_alteracao(id_ot, "estado", "Pendente", "Concluída")
-                self.mock_repo.registar.assert_not_called()
+                self.mock_repo.inserir.assert_not_called()
 
     def test_campo_vazio_ou_so_espacos_levanta_erro(self):
         casos = [("", "vazio"), ("   ", "só espaços"), (None, "None")]
@@ -32,27 +31,27 @@ class TestLogAlteracaoOTService(unittest.TestCase):
             with self.subTest(caso=descricao):
                 with self.assertRaises(ValueError):
                     self.svc.registar_alteracao(1, campo, "Pendente", "Concluída")
-                self.mock_repo.registar.assert_not_called()
+                self.mock_repo.inserir.assert_not_called()
 
     def test_ot_inexistente_levanta_erro(self):
-        self.cursor.fetchone.return_value = None
+        self.mock_ot_repo.obter_por_id.return_value = None
 
         with self.assertRaises(ValueError):
             self.svc.registar_alteracao(99, "estado", "Pendente", "Concluída")
 
-        self.mock_repo.registar.assert_not_called()
+        self.mock_repo.inserir.assert_not_called()
 
     # ----- registar_alteracao: caminho feliz -----
 
     def test_registar_chama_o_repositorio_uma_vez(self):
         self.svc.registar_alteracao(1, "estado", "Pendente", "Em Curso")
 
-        self.mock_repo.registar.assert_called_once()
+        self.mock_repo.inserir.assert_called_once()
 
     def test_registar_passa_um_objeto_com_os_dados_certos(self):
         self.svc.registar_alteracao(1, "  estado  ", "Pendente", "Em Curso")
 
-        registo = self.mock_repo.registar.call_args[0][0]
+        registo = self.mock_repo.inserir.call_args[0][0]
         self.assertIsInstance(registo, LogAlteracaoOT)   # e não um dicionário
         self.assertEqual(registo.id_ot, 1)
         self.assertEqual(registo.campo_alterado, "estado")   # sem espaços
@@ -68,7 +67,7 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         self.assertEqual(resultado.campo_alterado, "estado")
 
     def test_erro_do_repositorio_propaga(self):
-        self.mock_repo.registar.side_effect = RuntimeError("BD off")
+        self.mock_repo.inserir.side_effect = RuntimeError("BD off")
 
         with self.assertRaises(RuntimeError):
             self.svc.registar_alteracao(1, "estado", "Pendente", "Em Curso")
@@ -113,7 +112,7 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         self.mock_repo.listar_por_ot.assert_called_once_with(1)
 
     def test_listar_por_ot_inexistente_levanta_erro(self):
-        self.cursor.fetchone.return_value = None
+        self.mock_ot_repo.obter_por_id.return_value = None
 
         with self.assertRaises(ValueError):
             self.svc.listar_alteracoes_por_ot(99)
@@ -138,7 +137,3 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         self.mock_repo.listar_todos.return_value = []
 
         self.assertEqual(self.svc.listar_todas_alteracoes(), [])
-
-
-if __name__ == "__main__":
-    unittest.main()

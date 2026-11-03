@@ -1,5 +1,5 @@
 
-from src.models.viatura import Viatura
+from src.models.viatura_model import Viatura
 
 
 class ViaturaController:
@@ -27,7 +27,7 @@ class ViaturaController:
                 id_cliente=int(dados["id_cliente"]),
                 ano=int(dados["ano"]) if dados.get("ano") else None,
                 cor=dados.get("cor"),
-                km_estrada=int(dados.get("km_estrada") or 0)
+                km_entrada=int(dados.get("km_entrada") or 0)
             )
 
             self.viatura_service.registar_viatura(viatura)
@@ -152,10 +152,10 @@ class ViaturaController:
             viatura.cor = dados.get(
                 "cor", viatura.cor
             )
-            viatura.km_estrada = (
-                int(dados["km_estrada"])
-                if dados.get("km_estrada") not in (None, "")
-                else viatura.km_estrada
+            viatura.km_entrada = (
+                int(dados["km_entrada"])
+                if dados.get("km_entrada") not in (None, "")
+                else viatura.km_entrada
             )
 
             resultado = self.viatura_service.atualizar_viatura(

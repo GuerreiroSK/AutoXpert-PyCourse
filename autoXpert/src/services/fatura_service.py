@@ -1,5 +1,5 @@
 from datetime import date
-from src.models.fatura_models import Fatura
+from src.models.fatura_model import Fatura
 from pathlib import Path
 from openpyxl import Workbook
 
@@ -156,7 +156,11 @@ class FaturaService:
         PASTA_DOCS.mkdir(parents=True, exist_ok=True)
 
         # Definir o nome e caminho do ficheiro
-        caminho = PASTA_DOCS / f"Faturacao_{ano}_{mes:02d}.xlsx"
+        if mes < 10:
+            mes_texto = "0" + str(mes)
+        else:
+            mes_texto = str(mes)
+        caminho = PASTA_DOCS / ("Faturacao_" + str(ano) + "_" + mes_texto + ".xlsx")
 
         wb = Workbook()
         ws = wb.active

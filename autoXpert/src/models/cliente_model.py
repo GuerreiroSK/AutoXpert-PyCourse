@@ -18,4 +18,4 @@ class Cliente:
         self.data_registo = data_registo
 
     def __str__(self):
-        return f"Cliente {self.id_cliente}: {self.nome}"
+        return "Cliente " + str(self.id_cliente) + ": " + self.nome

@@ -1,2 +1,19 @@
+# Python
 __pycache__/
+*.pyc
+
+# Base de dados local (cada pessoa cria a sua; é gerada a partir de db/schema.sql)
 *.db
+
+# Relatórios Excel gerados pela aplicação
+docs/*.xlsx
+
+# Ambientes virtuais e editor
+.venv/
+venv/
+.vscode/
+.idea/
+
+# Lixo do sistema
+.DS_Store
+Thumbs.db

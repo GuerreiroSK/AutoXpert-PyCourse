@@ -1,6 +1,6 @@
 import sqlite3
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 from src.controllers.ots_base_controller import OtsBaseController
 
 

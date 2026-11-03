@@ -1,5 +1,5 @@
 from datetime import date
-from src.models.cliente_models import Cliente
+from src.models.cliente_model import Cliente
 
 
 class ClienteService:

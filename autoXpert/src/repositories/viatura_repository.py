@@ -1,109 +1,97 @@
-
-import sqlite3
-from typing import Optional
-
-from src.models.viatura import Viatura
+from src.models.viatura_model import Viatura
 
 
 class ViaturaRepository:
+    # Todo o SQL da tabela Viatura. A ligação é recebida de fora e tem de devolver
+    # linhas acessíveis pelo nome da coluna (db/connection.py já o faz).
 
-    def __init__(self, connection: sqlite3.Connection):
-        self.connection = connection
-        self.connection.row_factory = sqlite3.Row
+    def __init__(self, conexao):
+        self.conexao = conexao
 
-    def criar(self, viatura: Viatura) -> int:
-        cursor = self.connection.execute(
-            """
-            INSERT INTO Viatura (
-                matricula, marca, modelo, ano,
-                cor, km_estrada, id_cliente
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                viatura.matricula,
-                viatura.marca,
-                viatura.modelo,
-                viatura.ano,
-                viatura.cor,
-                viatura.km_estrada,
-                viatura.id_cliente
-            )
+    # Converte uma linha da base de dados num objeto Viatura
+    def _linha_para_objeto(self, linha):
+        return Viatura(
+            id_viatura=linha["id_viatura"],
+            matricula=linha["matricula"],
+            marca=linha["marca"],
+            modelo=linha["modelo"],
+            ano=linha["ano"],
+            cor=linha["cor"],
+            km_entrada=linha["km_entrada"],
+            id_cliente=linha["id_cliente"]
         )
 
-        self.connection.commit()
-        viatura.id_viatura = cursor.lastrowid
-        return cursor.lastrowid
+    def _lista_de_objetos(self, linhas):
+        viaturas = []
+        for linha in linhas:
+            viaturas.append(self._linha_para_objeto(linha))
+        return viaturas
 
-    def obter_por_id(self, id_viatura: int) -> Optional[Viatura]:
-        cursor = self.connection.execute(
+    # Grava a viatura, preenche o id e devolve-o
+    def inserir(self, viatura):
+        cursor = self.conexao.execute(
+            "INSERT INTO Viatura (matricula, marca, modelo, ano, cor, "
+            "km_entrada, id_cliente) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (viatura.matricula, viatura.marca, viatura.modelo, viatura.ano,
+             viatura.cor, viatura.km_entrada, viatura.id_cliente)
+        )
+        self.conexao.commit()
+        viatura.id_viatura = cursor.lastrowid
+        return viatura
+
+    def obter_por_id(self, id_viatura):
+        linha = self.conexao.execute(
             "SELECT * FROM Viatura WHERE id_viatura = ?",
             (id_viatura,)
-        )
-        row = cursor.fetchone()
+        ).fetchone()
 
-        return Viatura.from_row(row) if row else None
+        if linha is None:
+            return None
+        return self._linha_para_objeto(linha)
 
-    def obter_por_matricula(
-        self, matricula: str
-    ) -> Optional[Viatura]:
-        cursor = self.connection.execute(
+    def obter_por_matricula(self, matricula):
+        linha = self.conexao.execute(
             "SELECT * FROM Viatura WHERE matricula = ?",
             (matricula,)
-        )
-        row = cursor.fetchone()
+        ).fetchone()
 
-        return Viatura.from_row(row) if row else None
+        if linha is None:
+            return None
+        return self._linha_para_objeto(linha)
 
-    def listar_todas(self) -> list[Viatura]:
-        cursor = self.connection.execute(
+    def listar_todos(self):
+        linhas = self.conexao.execute(
             "SELECT * FROM Viatura ORDER BY id_viatura"
-        )
-        return [Viatura.from_row(row) for row in cursor.fetchall()]
+        ).fetchall()
+        return self._lista_de_objetos(linhas)
 
-    def listar_por_cliente(self, id_cliente: int) -> list[Viatura]:
-        cursor = self.connection.execute(
-            """
-            SELECT * FROM Viatura
-            WHERE id_cliente = ?
-            ORDER BY id_viatura
-            """,
+    def listar_por_cliente(self, id_cliente):
+        linhas = self.conexao.execute(
+            "SELECT * FROM Viatura WHERE id_cliente = ? ORDER BY id_viatura",
             (id_cliente,)
-        )
-        return [Viatura.from_row(row) for row in cursor.fetchall()]
+        ).fetchall()
+        return self._lista_de_objetos(linhas)
 
-    def atualizar(self, viatura: Viatura) -> bool:
+    # Devolve True se a viatura existia
+    def atualizar(self, viatura):
         if viatura.id_viatura is None:
             return False
 
-        cursor = self.connection.execute(
-            """
-            UPDATE Viatura
-            SET matricula = ?, marca = ?, modelo = ?,
-                ano = ?, cor = ?, km_estrada = ?,
-                id_cliente = ?
-            WHERE id_viatura = ?
-            """,
-            (
-                viatura.matricula,
-                viatura.marca,
-                viatura.modelo,
-                viatura.ano,
-                viatura.cor,
-                viatura.km_estrada,
-                viatura.id_cliente,
-                viatura.id_viatura
-            )
+        cursor = self.conexao.execute(
+            "UPDATE Viatura SET matricula = ?, marca = ?, modelo = ?, ano = ?, "
+            "cor = ?, km_entrada = ?, id_cliente = ? WHERE id_viatura = ?",
+            (viatura.matricula, viatura.marca, viatura.modelo, viatura.ano,
+             viatura.cor, viatura.km_entrada, viatura.id_cliente,
+             viatura.id_viatura)
         )
-
-        self.connection.commit()
+        self.conexao.commit()
         return cursor.rowcount > 0
 
-    def eliminar(self, id_viatura: int) -> bool:
-        cursor = self.connection.execute(
+    # Devolve True se a viatura existia
+    def eliminar(self, id_viatura):
+        cursor = self.conexao.execute(
             "DELETE FROM Viatura WHERE id_viatura = ?",
             (id_viatura,)
         )
-
-        self.connection.commit()
+        self.conexao.commit()
         return cursor.rowcount > 0

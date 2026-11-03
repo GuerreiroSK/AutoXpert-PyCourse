@@ -1,6 +1,6 @@
 from datetime import datetime, date
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 
 
 class OrdemTrabalhoService:
@@ -9,8 +9,11 @@ class OrdemTrabalhoService:
     # Não tem SQL (isso é dos repositórios) nem print/input (isso é das views).
     # Os erros de validação são ValueError, com mensagens prontas a mostrar ao utilizador.
 
-    def __init__(self, repo_ot):
+    # log_service regista no Log (LogAlteracaoOTService) cada mudança de estado
+    # e de técnico, com o valor anterior e o novo.
+    def __init__(self, repo_ot, log_service):
         self.repo_ot = repo_ot
+        self.log_service = log_service
 
     # ---------- Validações auxiliares ----------
 
@@ -25,7 +28,7 @@ class OrdemTrabalhoService:
             raise ValueError(nome_campo + " inválida (usar AAAA-MM-DD): " + str(texto))
 
     def _obter_ot_existente(self, id_ot):
-        ot = self.repo_ot.procurar_por_id(id_ot)
+        ot = self.repo_ot.obter_por_id(id_ot)
         if ot is None:
             raise ValueError("OT não encontrada: " + str(id_ot))
         return ot
@@ -70,6 +73,7 @@ class OrdemTrabalhoService:
         if novo_estado == ot.estado:
             return ot
         self.garantir_editavel(ot)
+        estado_anterior = ot.estado
 
         if novo_estado == OrdemTrabalho.ESTADO_ENTREGUE:
             if ot.estado != OrdemTrabalho.ESTADO_CONCLUIDA:
@@ -86,6 +90,7 @@ class OrdemTrabalhoService:
         else:
             self.repo_ot.mudar_estado(id_ot, novo_estado)
             ot.estado = novo_estado
+        self.log_service.registar_alteracao(id_ot, "estado", estado_anterior, novo_estado)
         return ot
 
     # RF05: troca o técnico responsável
@@ -94,8 +99,12 @@ class OrdemTrabalhoService:
         self.garantir_editavel(ot)
         if id_tecnico is None:
             raise ValueError("Tem de indicar o técnico responsável")
+        tecnico_anterior = ot.id_tecnico
         self.repo_ot.atribuir_tecnico(id_ot, id_tecnico)
         ot.id_tecnico = id_tecnico
+        if id_tecnico != tecnico_anterior:
+            self.log_service.registar_alteracao(
+                id_ot, "técnico", str(tecnico_anterior), str(id_tecnico))
         return ot
 
     # RF13: guarda o custo total da OT. O valor é calculado pelo LinhaOTService

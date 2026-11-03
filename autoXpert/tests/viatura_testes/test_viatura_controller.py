@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock
 
 from src.controllers.viatura_controller import ViaturaController
-from src.models.viatura import Viatura
+from src.models.viatura_model import Viatura
 
 
 class TestViaturaController(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestViaturaController(unittest.TestCase):
             id_cliente=1,
             ano=2022,
             cor="Preto",
-            km_estrada=10000
+            km_entrada=10000
         )
 
     def test_registar_viatura(self):
@@ -36,7 +36,7 @@ class TestViaturaController(unittest.TestCase):
             "id_cliente": 1,
             "ano": 2022,
             "cor": "Preto",
-            "km_estrada": 10000
+            "km_entrada": 10000
         }
 
         self.service.registar_viatura.return_value = 1
@@ -145,7 +145,3 @@ class TestViaturaController(unittest.TestCase):
         self.controller.menu()
 
         self.view.menu_viatura.assert_called_once_with(self.controller)
-
-
-if __name__ == "__main__":
-    unittest.main()

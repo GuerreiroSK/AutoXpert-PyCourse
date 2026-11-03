@@ -2,9 +2,11 @@ import sqlite3
 import unittest
 from datetime import date
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.services.ot_service import OrdemTrabalhoService
+from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
+from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
@@ -15,7 +17,9 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
     def setUp(self):
         self.conexao = criar_conexao_teste()
         self.repo_ot = OrdemTrabalhoRepository(self.conexao)
-        self.service = OrdemTrabalhoService(self.repo_ot)
+        self.repo_log = LogAlteracaoOTRepository(self.conexao)
+        self.service = OrdemTrabalhoService(
+            self.repo_ot, LogAlteracaoOTService(self.repo_log, self.repo_ot))
 
     def tearDown(self):
         self.conexao.close()
@@ -44,7 +48,7 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         self.assertEqual(ot.id_ot, 1)
         self.assertEqual(ot.estado, "Pendente")
         self.assertEqual(ot.custo_total, 0)
-        gravada = self.repo_ot.procurar_por_id(1)
+        gravada = self.repo_ot.obter_por_id(1)
         self.assertEqual(gravada.id_tecnico, 1)
         self.assertEqual(gravada.descricao_avaria, "Travões a chiar")
 
@@ -101,12 +105,12 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         for estado in sequencia:
             resultado = self.service.mudar_estado(ot.id_ot, estado)
             self.assertEqual(resultado.estado, estado)
-            self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).estado, estado)
+            self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).estado, estado)
 
     def test_data_saida_real_fica_vazia_antes_de_entregue(self):
         ot = self._criar_ot()
         self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        self.assertIsNone(self.repo_ot.procurar_por_id(ot.id_ot).data_saida_real)
+        self.assertIsNone(self.repo_ot.obter_por_id(ot.id_ot).data_saida_real)
 
     def test_entregar_preenche_a_data_de_saida_real(self):
         ot = self._criar_ot()
@@ -114,7 +118,7 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         resultado = self.service.mudar_estado(
             ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE, data_saida_real="2026-10-31")
         self.assertEqual(resultado.estado, "Entregue")
-        gravada = self.repo_ot.procurar_por_id(ot.id_ot)
+        gravada = self.repo_ot.obter_por_id(ot.id_ot)
         self.assertEqual(gravada.estado, "Entregue")
         self.assertEqual(gravada.data_saida_real, "2026-10-31")
 
@@ -122,7 +126,7 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         ot = self._criar_ot(data_entrada="2026-01-01", data_prev_saida="2026-01-05")
         self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
         self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE)
-        gravada = self.repo_ot.procurar_por_id(ot.id_ot)
+        gravada = self.repo_ot.obter_por_id(ot.id_ot)
         self.assertEqual(gravada.data_saida_real, date.today().isoformat())
 
     def test_so_se_entrega_uma_ot_concluida(self):
@@ -132,7 +136,7 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_EM_CURSO)
         with self.assertRaises(ValueError):
             self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE)
-        gravada = self.repo_ot.procurar_por_id(ot.id_ot)
+        gravada = self.repo_ot.obter_por_id(ot.id_ot)
         self.assertEqual(gravada.estado, "Em Curso")
         self.assertIsNone(gravada.data_saida_real)
 
@@ -145,13 +149,13 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         with self.assertRaises(ValueError):  # anterior à entrada
             self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE,
                                       data_saida_real="2026-10-27")
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).estado, "Concluída")
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).estado, "Concluída")
 
     def test_ot_entregue_nao_muda_de_estado(self):
         ot = self._criar_ot_entregue()
         with self.assertRaises(ValueError):
             self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_EM_CURSO)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).estado, "Entregue")
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).estado, "Entregue")
 
     def test_mudar_para_o_mesmo_estado_nao_faz_nada(self):
         ot = self._criar_ot()
@@ -165,11 +169,29 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.mudar_estado(99, OrdemTrabalho.ESTADO_EM_CURSO)
 
+    def test_alteracoes_ficam_gravadas_no_log(self):
+        ot = self._criar_ot()
+
+        self.service.mudar_estado(ot.id_ot, "Em Curso")
+        self.service.atribuir_tecnico(ot.id_ot, 2)
+
+        campos = []
+        for registo in self.repo_log.listar_por_ot(ot.id_ot):
+            campos.append((registo.campo_alterado, registo.valor_anterior, registo.valor_novo))
+        self.assertEqual(len(campos), 2)
+        self.assertIn(("estado", "Pendente", "Em Curso"), campos)
+        self.assertIn(("técnico", "1", "2"), campos)
+
+    def test_criar_ot_nao_regista_no_log(self):
+        self._criar_ot()
+
+        self.assertEqual(self.repo_log.listar_todos(), [])
+
     def test_atribuir_tecnico(self):
         ot = self._criar_ot(id_tecnico=1)
         resultado = self.service.atribuir_tecnico(ot.id_ot, 2)
         self.assertEqual(resultado.id_tecnico, 2)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).id_tecnico, 2)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).id_tecnico, 2)
 
     def test_atribuir_tecnico_casos_invalidos(self):
         ot = self._criar_ot()
@@ -232,9 +254,9 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
     def test_atualizar_custo_total(self):
         ot = self._criar_ot()
         self.service.atualizar_custo_total(ot.id_ot, 123.45)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 123.45)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 123.45)
         self.service.atualizar_custo_total(ot.id_ot, 0)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 0)
 
     def test_atualizar_custo_total_casos_invalidos(self):
         ot = self._criar_ot()
@@ -244,7 +266,7 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
             self.service.atualizar_custo_total(ot.id_ot, None)
         with self.assertRaises(ValueError):   # OT inexistente
             self.service.atualizar_custo_total(99, 10)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 0)
 
     def test_garantir_editavel(self):
         self.service.garantir_editavel(self._criar_ot())   # Pendente: não levanta erro

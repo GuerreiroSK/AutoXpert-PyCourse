@@ -1,13 +1,15 @@
-def ler_decimal(texto: str, campo: str) -> float:
-    """Aceita a virgula decimal usada em Portugal, sem separadores de milhares."""
+# Converte o texto escrito nos formulários em números.
+
+# Aceita a vírgula decimal usada em Portugal (ex.: 12,50)
+def ler_decimal(texto, campo):
     try:
         return float(texto.strip().replace(",", "."))
-    except ValueError as erro:
-        raise ValueError(f"O campo '{campo}' deve ser numerico (exemplo: 12,50).") from erro
+    except ValueError:
+        raise ValueError("O campo '" + campo + "' deve ser numérico (exemplo: 12,50).")
 
 
-def ler_inteiro(texto: str, campo: str) -> int:
+def ler_inteiro(texto, campo):
     try:
         return int(texto.strip())
-    except ValueError as erro:
-        raise ValueError(f"O campo '{campo}' deve ser um inteiro (exemplo: 3).") from erro
+    except ValueError:
+        raise ValueError("O campo '" + campo + "' deve ser um inteiro (exemplo: 3).")

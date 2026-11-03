@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS Viatura (
     modelo TEXT NOT NULL,
     ano INTEGER,
     cor TEXT,
-    km_estrada INTEGER NOT NULL DEFAULT 0 CHECK(km_estrada >= 0),
+    km_entrada INTEGER NOT NULL DEFAULT 0 CHECK(km_entrada >= 0),
     id_cliente INTEGER NOT NULL REFERENCES Cliente(id_cliente)
 );
 

@@ -1,11 +1,13 @@
 import unittest
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
+from src.models.ot_model import OrdemTrabalho
 from src.models.linha_ot_model import LinhaOT
 from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.repositories.linha_ot_repository import LinhaOTRepository
 from src.services.ot_service import OrdemTrabalhoService
 from src.services.linha_ot_service import LinhaOTService
+from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
+from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
@@ -17,7 +19,8 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         self.conexao = criar_conexao_teste()
         self.repo_ot = OrdemTrabalhoRepository(self.conexao)
         self.repo_linha = LinhaOTRepository(self.conexao)
-        self.ot_service = OrdemTrabalhoService(self.repo_ot)
+        log_service = LogAlteracaoOTService(LogAlteracaoOTRepository(self.conexao), self.repo_ot)
+        self.ot_service = OrdemTrabalhoService(self.repo_ot, log_service)
         self.service = LinhaOTService(self.repo_linha, self.ot_service)
 
     def tearDown(self):
@@ -41,32 +44,32 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA,
                                      "Substituir pastilhas", 1.5, 40.0,
                                      horas_trabalhadas=1.5)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 60.0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 60.0)
         linha = self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA,
                                              "Pastilhas", 2, 25.0, id_peca=1)
         self.assertEqual(linha.id_linha, 2)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 110.0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 110.0)
 
     def test_remover_linha_recalcula_o_custo(self):
         ot = self._criar_ot()
         l1 = self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 1, 40)
         self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "Filtro", 1, 15.5, id_peca=1)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 55.5)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 55.5)
         self.service.remover_linha(l1.id_linha)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 15.5)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 15.5)
         self.assertEqual(len(self.service.listar_linhas(ot.id_ot)), 1)
 
     def test_remover_ultima_linha_poe_custo_a_zero(self):
         ot = self._criar_ot()
         linha = self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 1, 40)
         self.service.remover_linha(linha.id_linha)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 0)
 
     def test_custo_e_arredondado_a_duas_casas(self):
         ot = self._criar_ot()
         self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "Parafuso", 3, 0.1, id_peca=1)
         self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "Porca", 3, 0.2, id_peca=2)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0.9)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 0.9)
 
     def test_adicionar_linha_valida_os_dados(self):
         ot = self._criar_ot()
@@ -83,7 +86,7 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         with self.assertRaises(ValueError):   # mão-de-obra com peça
             self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "x", 1, 10, id_peca=1)
         self.assertEqual(self.service.listar_linhas(ot.id_ot), [])
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 0)
 
     def test_adicionar_linha_a_ot_inexistente(self):
         with self.assertRaises(ValueError):
@@ -97,7 +100,7 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.remover_linha(linhas[0].id_linha)
         self.assertEqual(len(self.service.listar_linhas(ot.id_ot)), 1)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 50)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 50)
 
     def test_remover_linha_inexistente(self):
         with self.assertRaises(ValueError):
@@ -112,7 +115,7 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 2, 30)
         self.ot_service.atualizar_custo_total(ot.id_ot, 999)   # custo desatualizado
         self.assertEqual(self.service.recalcular_custo(ot.id_ot), 60)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 60)
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).custo_total, 60)
 
     def test_cada_ot_so_ve_e_conta_as_suas_linhas(self):
         ot1 = self._criar_ot(id_viatura=1)
@@ -121,5 +124,5 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         linha2 = self.service.adicionar_linha(ot2.id_ot, LinhaOT.TIPO_MAO_OBRA, "B", 1, 20)
         self.assertEqual(len(self.service.listar_linhas(ot1.id_ot)), 1)
         self.service.remover_linha(linha2.id_linha)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot1.id_ot).custo_total, 10)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot2.id_ot).custo_total, 0)
+        self.assertEqual(self.repo_ot.obter_por_id(ot1.id_ot).custo_total, 10)
+        self.assertEqual(self.repo_ot.obter_por_id(ot2.id_ot).custo_total, 0)

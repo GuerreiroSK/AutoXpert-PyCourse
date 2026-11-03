@@ -89,7 +89,3 @@ class TestLogAlteracaoOTController(unittest.TestCase):
         self.controller.menu()
 
         self.view.menu_log.assert_called_once_with(self.controller)
-
-
-if __name__ == "__main__":
-    unittest.main()
