@@ -79,7 +79,7 @@ def listar_historico_ot(matricula: str) -> list[sqlite3.Row]:
 import sqlite3
 from typing import Optional
 
-from models.viatura import Viatura
+from src.models.viatura import Viatura
 
 
 class ViaturaRepository:

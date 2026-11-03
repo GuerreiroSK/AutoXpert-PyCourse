@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from datetime import date
 
 from src.views.linha_ot_view import PainelLinhasOT
+from src.views.estilo import criar_cabecalho
 
 
 class JanelaOTs:
@@ -19,8 +20,9 @@ class JanelaOTs:
         self.id_ot_atual = None  # OT que está selecionada na lista
 
         self.raiz.title("AutoXpert - Ordens de Trabalho")
-        self.raiz.geometry("1180x760")
+        self.raiz.geometry("1180x810")
 
+        criar_cabecalho(self.raiz, "Ordens de Trabalho")
         self.criar_pesquisa()
         self.criar_lista()
         self.criar_detalhe()

@@ -42,7 +42,7 @@ import sqlite3
 from datetime import datetime
 from typing import Optional
 
-from models.log_alteracao_ot import LogAlteracaoOT
+from src.models.log_alteracao_ot import LogAlteracaoOT
 
 class LogAlteracaoOTRepository:
 
