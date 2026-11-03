@@ -2,7 +2,7 @@
 import sqlite3
 from typing import Optional
 
-from models.viatura import Viatura
+from src.models.viatura import Viatura
 
 
 class ViaturaRepository:

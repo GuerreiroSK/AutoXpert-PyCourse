@@ -1,123 +1,301 @@
+import sqlite3
 import unittest
+from unittest.mock import MagicMock
 
-from src.models.ordem_trabalho_model import OrdemTrabalho
 from src.models.linha_ot_model import LinhaOT
-from src.repositories.ot_repository import OrdemTrabalhoRepository
-from src.repositories.linha_ot_repository import LinhaOTRepository
-from src.services.ot_service import OrdemTrabalhoService
 from src.services.linha_ot_service import LinhaOTService
-from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
-class TesteLinhaOTService(unittest.TestCase):
+class TestLinhaOTService(unittest.TestCase):
+    # Testes unitários: o repositório das linhas e o service das OTs são MagicMock,
+    # por isso não há base de dados.
 
     def setUp(self):
-        self.conexao = criar_conexao_teste()
-        self.repo_ot = OrdemTrabalhoRepository(self.conexao)
-        self.repo_linha = LinhaOTRepository(self.conexao)
-        self.ot_service = OrdemTrabalhoService(self.repo_ot)
-        self.service = LinhaOTService(self.repo_linha, self.ot_service)
+        # Executado antes de CADA teste: cria mocks limpos
+        self.mock_repo = MagicMock()
+        self.mock_ot_service = MagicMock()
+        self.svc = LinhaOTService(self.mock_repo, self.mock_ot_service)
 
-    def tearDown(self):
-        self.conexao.close()
+    # Cria uma linha (como se viesse do repositório)
+    def _linha(self, id_linha=1, id_ot=1, quantidade=1, preco=10):
+        return LinhaOT(id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", quantidade, preco,
+                       id_linha=id_linha)
 
-    def _criar_ot(self, id_viatura=1):
-        return self.ot_service.criar_ot(id_viatura, 1, "2026-10-28", "2026-10-30",
-                                        "Travões a chiar")
+    # ----- adicionar_linha: a OT tem de existir e estar editável -----
 
-    # OT com uma linha que passou por Concluída e Entregue (já não pode ser alterada)
-    def _criar_ot_entregue(self):
-        ot = self._criar_ot()
-        self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 1, 50)
-        self.ot_service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
-        self.ot_service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_ENTREGUE,
-                                     data_saida_real="2026-10-30")
-        return ot
+    def test_adicionar_a_ot_inexistente_levanta_erro(self):
+        self.mock_ot_service.obter_ot.side_effect = ValueError("OT não encontrada: 99")
 
-    def test_adicionar_linhas_recalcula_o_custo(self):
-        ot = self._criar_ot()
-        self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA,
-                                     "Substituir pastilhas", 1.5, 40.0,
-                                     horas_trabalhadas=1.5)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 60.0)
-        linha = self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA,
-                                             "Pastilhas", 2, 25.0, id_peca=1)
-        self.assertEqual(linha.id_linha, 2)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 110.0)
-
-    def test_remover_linha_recalcula_o_custo(self):
-        ot = self._criar_ot()
-        l1 = self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 1, 40)
-        self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "Filtro", 1, 15.5, id_peca=1)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 55.5)
-        self.service.remover_linha(l1.id_linha)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 15.5)
-        self.assertEqual(len(self.service.listar_linhas(ot.id_ot)), 1)
-
-    def test_remover_ultima_linha_poe_custo_a_zero(self):
-        ot = self._criar_ot()
-        linha = self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 1, 40)
-        self.service.remover_linha(linha.id_linha)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
-
-    def test_custo_e_arredondado_a_duas_casas(self):
-        ot = self._criar_ot()
-        self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "Parafuso", 3, 0.1, id_peca=1)
-        self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "Porca", 3, 0.2, id_peca=2)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0.9)
-
-    def test_adicionar_linha_valida_os_dados(self):
-        ot = self._criar_ot()
-        with self.assertRaises(ValueError):   # descrição vazia
-            self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, " ", 1, 10)
-        with self.assertRaises(ValueError):   # quantidade 0
-            self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "x", 0, 10)
-        with self.assertRaises(ValueError):   # preço negativo
-            self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "x", 1, -1)
-        with self.assertRaises(ValueError):   # tipo inválido
-            self.service.adicionar_linha(ot.id_ot, "outro", "x", 1, 10)
-        with self.assertRaises(ValueError):   # peça sem indicar a peça
-            self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_PECA, "x", 1, 10)
-        with self.assertRaises(ValueError):   # mão-de-obra com peça
-            self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "x", 1, 10, id_peca=1)
-        self.assertEqual(self.service.listar_linhas(ot.id_ot), [])
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 0)
-
-    def test_adicionar_linha_a_ot_inexistente(self):
         with self.assertRaises(ValueError):
-            self.service.adicionar_linha(99, LinhaOT.TIPO_MAO_OBRA, "x", 1, 10)
+            self.svc.adicionar_linha(99, "mao_obra", "Trabalho", 1, 10)
 
-    def test_ot_entregue_nao_aceita_nem_perde_linhas(self):
-        ot = self._criar_ot_entregue()
-        linhas = self.service.listar_linhas(ot.id_ot)
+        self.mock_repo.inserir.assert_not_called()
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    def test_adicionar_a_ot_entregue_levanta_erro(self):
+        self.mock_ot_service.garantir_editavel.side_effect = ValueError("OT já entregue")
+
         with self.assertRaises(ValueError):
-            self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "x", 1, 10)
+            self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, 10)
+
+        self.mock_repo.inserir.assert_not_called()
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    # ----- adicionar_linha: validações (assertRaises + assert_not_called) -----
+
+    def test_descricao_invalida_levanta_erro(self):
+        for descricao in ("", "   ", None):
+            with self.subTest(descricao=descricao):
+                with self.assertRaises(ValueError):
+                    self.svc.adicionar_linha(1, "mao_obra", descricao, 1, 10)
+                self.mock_repo.inserir.assert_not_called()
+
+    def test_quantidade_invalida_levanta_erro(self):
+        for quantidade in (0, -1, -0.5, None):
+            with self.subTest(quantidade=quantidade):
+                with self.assertRaises(ValueError):
+                    self.svc.adicionar_linha(1, "mao_obra", "Trabalho", quantidade, 10)
+                self.mock_repo.inserir.assert_not_called()
+
+    def test_preco_invalido_levanta_erro(self):
+        for preco in (-1, -0.01, None):
+            with self.subTest(preco=preco):
+                with self.assertRaises(ValueError):
+                    self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, preco)
+                self.mock_repo.inserir.assert_not_called()
+
+    def test_preco_zero_e_valido(self):
+        self.svc.adicionar_linha(1, "mao_obra", "Garantia", 1, 0)
+
+        self.mock_repo.inserir.assert_called_once()
+
+    def test_linha_de_peca_sem_peca_levanta_erro(self):
         with self.assertRaises(ValueError):
-            self.service.remover_linha(linhas[0].id_linha)
-        self.assertEqual(len(self.service.listar_linhas(ot.id_ot)), 1)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 50)
+            self.svc.adicionar_linha(1, "peca", "Pastilhas", 2, 25)
 
-    def test_remover_linha_inexistente(self):
+        self.mock_repo.inserir.assert_not_called()
+
+    def test_linha_de_mao_de_obra_com_peca_levanta_erro(self):
         with self.assertRaises(ValueError):
-            self.service.remover_linha(99)
+            self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, 40, id_peca=1)
 
-    def test_listar_linhas_de_ot_inexistente(self):
+        self.mock_repo.inserir.assert_not_called()
+
+    def test_tipo_invalido_levanta_erro(self):
+        # O próprio modelo recusa tipos que não existem
         with self.assertRaises(ValueError):
-            self.service.listar_linhas(99)
+            self.svc.adicionar_linha(1, "outro", "Trabalho", 1, 10)
 
-    def test_recalcular_custo_devolve_o_total_e_guarda_na_ot(self):
-        ot = self._criar_ot()
-        self.service.adicionar_linha(ot.id_ot, LinhaOT.TIPO_MAO_OBRA, "Trabalho", 2, 30)
-        self.ot_service.atualizar_custo_total(ot.id_ot, 999)   # custo desatualizado
-        self.assertEqual(self.service.recalcular_custo(ot.id_ot), 60)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot.id_ot).custo_total, 60)
+        self.mock_repo.inserir.assert_not_called()
 
-    def test_cada_ot_so_ve_e_conta_as_suas_linhas(self):
-        ot1 = self._criar_ot(id_viatura=1)
-        ot2 = self._criar_ot(id_viatura=2)
-        self.service.adicionar_linha(ot1.id_ot, LinhaOT.TIPO_MAO_OBRA, "A", 1, 10)
-        linha2 = self.service.adicionar_linha(ot2.id_ot, LinhaOT.TIPO_MAO_OBRA, "B", 1, 20)
-        self.assertEqual(len(self.service.listar_linhas(ot1.id_ot)), 1)
-        self.service.remover_linha(linha2.id_linha)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot1.id_ot).custo_total, 10)
-        self.assertEqual(self.repo_ot.procurar_por_id(ot2.id_ot).custo_total, 0)
+    # ----- adicionar_linha: caminho feliz -----
+
+    def test_adicionar_chama_o_repo_uma_vez(self):
+        self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, 40)
+
+        self.mock_repo.inserir.assert_called_once()
+
+    def test_adicionar_aceita_os_dois_tipos(self):
+        # (tipo, id_peca): a peça só existe nas linhas de peça
+        casos = [("mao_obra", None), ("peca", 1)]
+        for tipo, id_peca in casos:
+            with self.subTest(tipo=tipo):
+                self.mock_repo.reset_mock()
+
+                self.svc.adicionar_linha(1, tipo, "Item", 1, 10, id_peca=id_peca)
+
+                self.mock_repo.inserir.assert_called_once()
+
+    def test_adicionar_passa_a_linha_com_os_dados_certos(self):
+        self.svc.adicionar_linha(5, "peca", "  Pastilhas  ", 2, 25.5,
+                                 horas_trabalhadas=None, id_peca=3)
+
+        linha = self.mock_repo.inserir.call_args[0][0]
+        self.assertEqual(linha.id_ot, 5)
+        self.assertEqual(linha.tipo, "peca")
+        self.assertEqual(linha.descricao, "Pastilhas")   # sem espaços
+        self.assertEqual(linha.quantidade, 2)
+        self.assertEqual(linha.preco_unitario, 25.5)
+        self.assertEqual(linha.id_peca, 3)
+        self.assertIsNone(linha.id_linha)                # ainda sem ID do repo
+
+    def test_adicionar_guarda_as_horas_da_mao_de_obra(self):
+        self.svc.adicionar_linha(1, "mao_obra", "Pastilhas", 1.5, 40,
+                                 horas_trabalhadas=1.5)
+
+        linha = self.mock_repo.inserir.call_args[0][0]
+        self.assertEqual(linha.horas_trabalhadas, 1.5)
+        self.assertIsNone(linha.id_peca)
+
+    def test_adicionar_devolve_a_linha_criada(self):
+        resultado = self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, 40)
+
+        self.assertEqual(resultado.descricao, "Trabalho")
+
+    def test_adicionar_pede_a_ot_ao_service_das_ots(self):
+        self.svc.adicionar_linha(7, "mao_obra", "Trabalho", 1, 40)
+
+        self.mock_ot_service.obter_ot.assert_called_once_with(7)
+        self.mock_ot_service.garantir_editavel.assert_called_once()
+
+    # ----- adicionar_linha: recalcula o custo da OT -----
+
+    def test_adicionar_recalcula_e_guarda_o_custo(self):
+        # Depois de inserir, o repositório devolve as linhas da OT
+        self.mock_repo.listar_por_ot.return_value = [
+            self._linha(1, quantidade=1.5, preco=40),   # 60.0
+            self._linha(2, quantidade=2, preco=25),     # 50.0
+        ]
+
+        self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, 10)
+
+        self.mock_repo.listar_por_ot.assert_called_once_with(1)
+        self.mock_ot_service.atualizar_custo_total.assert_called_once_with(1, 110.0)
+
+    # ----- adicionar_linha: erros da base de dados (side_effect) -----
+
+    def test_erro_da_bd_ao_inserir_propaga_e_nao_atualiza_o_custo(self):
+        self.mock_repo.inserir.side_effect = RuntimeError("Ligação à BD perdida")
+
+        with self.assertRaises(RuntimeError):
+            self.svc.adicionar_linha(1, "mao_obra", "Trabalho", 1, 40)
+
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    def test_peca_inexistente_propaga_o_erro_da_bd(self):
+        self.mock_repo.inserir.side_effect = sqlite3.IntegrityError("FOREIGN KEY constraint failed")
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.svc.adicionar_linha(1, "peca", "Pastilhas", 1, 25, id_peca=99)
+
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    # ----- remover_linha -----
+
+    def test_remover_linha_inexistente_levanta_erro(self):
+        self.mock_repo.procurar_por_id.return_value = None
+
+        with self.assertRaises(ValueError):
+            self.svc.remover_linha(99)
+
+        self.mock_repo.apagar.assert_not_called()
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    def test_remover_linha_de_ot_entregue_levanta_erro(self):
+        self.mock_repo.procurar_por_id.return_value = self._linha(7)
+        self.mock_ot_service.garantir_editavel.side_effect = ValueError("OT já entregue")
+
+        with self.assertRaises(ValueError):
+            self.svc.remover_linha(7)
+
+        self.mock_repo.apagar.assert_not_called()
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    def test_remover_apaga_a_linha_certa(self):
+        self.mock_repo.procurar_por_id.return_value = self._linha(7, id_ot=3)
+        self.mock_repo.listar_por_ot.return_value = []
+
+        self.svc.remover_linha(7)
+
+        self.mock_repo.apagar.assert_called_once_with(7)
+        self.mock_ot_service.obter_ot.assert_called_once_with(3)
+
+    def test_remover_recalcula_o_custo_da_ot_da_linha(self):
+        self.mock_repo.procurar_por_id.return_value = self._linha(7, id_ot=3)
+        self.mock_repo.listar_por_ot.return_value = [self._linha(8, id_ot=3, quantidade=1, preco=15.5)]
+
+        self.svc.remover_linha(7)
+
+        self.mock_repo.listar_por_ot.assert_called_once_with(3)
+        self.mock_ot_service.atualizar_custo_total.assert_called_once_with(3, 15.5)
+
+    def test_remover_a_ultima_linha_poe_o_custo_a_zero(self):
+        self.mock_repo.procurar_por_id.return_value = self._linha(7)
+        self.mock_repo.listar_por_ot.return_value = []
+
+        self.svc.remover_linha(7)
+
+        self.mock_ot_service.atualizar_custo_total.assert_called_once_with(1, 0)
+
+    def test_erro_da_bd_ao_apagar_propaga_e_nao_atualiza_o_custo(self):
+        self.mock_repo.procurar_por_id.return_value = self._linha(7)
+        self.mock_repo.apagar.side_effect = RuntimeError("BD off")
+
+        with self.assertRaises(RuntimeError):
+            self.svc.remover_linha(7)
+
+        self.mock_ot_service.atualizar_custo_total.assert_not_called()
+
+    # ----- recalcular_custo -----
+
+    def test_recalcular_soma_os_subtotais_das_linhas(self):
+        self.mock_repo.listar_por_ot.return_value = [
+            self._linha(1, quantidade=1.5, preco=40),   # 60.0
+            self._linha(2, quantidade=1, preco=15.5),   # 15.5
+            self._linha(3, quantidade=2, preco=25),     # 50.0
+        ]
+
+        total = self.svc.recalcular_custo(1)
+
+        self.assertEqual(total, 125.5)
+        self.mock_ot_service.atualizar_custo_total.assert_called_once_with(1, 125.5)
+
+    def test_recalcular_sem_linhas_da_zero(self):
+        self.mock_repo.listar_por_ot.return_value = []
+
+        total = self.svc.recalcular_custo(1)
+
+        self.assertEqual(total, 0)
+        self.mock_ot_service.atualizar_custo_total.assert_called_once_with(1, 0)
+
+    def test_recalcular_arredonda_a_duas_casas(self):
+        # 3 x 0.1 + 3 x 0.2 dá 0.8999999... em decimal binário
+        self.mock_repo.listar_por_ot.return_value = [
+            self._linha(1, quantidade=3, preco=0.1),
+            self._linha(2, quantidade=3, preco=0.2),
+        ]
+
+        total = self.svc.recalcular_custo(1)
+
+        self.assertEqual(total, 0.9)
+
+    def test_recalcular_duas_vezes_usa_as_linhas_de_cada_momento(self):
+        # side_effect com lista: a 1.ª chamada devolve uma lista, a 2.ª devolve outra
+        linha1 = self._linha(1, quantidade=1, preco=40)
+        linha2 = self._linha(2, quantidade=1, preco=15.5)
+        self.mock_repo.listar_por_ot.side_effect = [[linha1], [linha1, linha2]]
+
+        primeiro = self.svc.recalcular_custo(1)
+        segundo = self.svc.recalcular_custo(1)
+
+        self.assertEqual(primeiro, 40)
+        self.assertEqual(segundo, 55.5)
+        self.assertEqual(self.mock_ot_service.atualizar_custo_total.call_count, 2)
+
+    # ----- listar_linhas -----
+
+    def test_listar_devolve_as_linhas_do_repositorio(self):
+        self.mock_repo.listar_por_ot.return_value = [self._linha(1), self._linha(2)]
+
+        resultado = self.svc.listar_linhas(1)
+
+        self.assertEqual(len(resultado), 2)
+        self.assertEqual(resultado[1].id_linha, 2)
+        self.mock_repo.listar_por_ot.assert_called_once_with(1)
+
+    def test_listar_de_ot_sem_linhas_devolve_lista_vazia(self):
+        self.mock_repo.listar_por_ot.return_value = []
+
+        self.assertEqual(self.svc.listar_linhas(1), [])
+
+    def test_listar_de_ot_inexistente_levanta_erro(self):
+        self.mock_ot_service.obter_ot.side_effect = ValueError("OT não encontrada: 99")
+
+        with self.assertRaises(ValueError):
+            self.svc.listar_linhas(99)
+
+        self.mock_repo.listar_por_ot.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

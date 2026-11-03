@@ -8,6 +8,7 @@ from src.services.linha_ot_service import LinhaOTService
 from src.controllers.ot_controller import OrdemTrabalhoController
 from src.controllers.linha_ot_controller import LinhaOTController
 from src.views.ot_view import JanelaOTs
+from src.views.estilo import aplicar_estilo
 
 
 # Abre a janela das Ordens de Trabalho.
@@ -27,6 +28,7 @@ if __name__ == "__main__":
     linha_controller = LinhaOTController(linha_service)
 
     raiz = tk.Tk()
+    aplicar_estilo(raiz)
     JanelaOTs(raiz, ot_controller, linha_controller)
     raiz.mainloop()
 
