@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock
 
 from src.controllers.viatura_controller import ViaturaController
-from src.models.viatura import Viatura
+from src.models.viatura_model import Viatura
 
 
 class TestViaturaController(unittest.TestCase):
@@ -145,7 +145,3 @@ class TestViaturaController(unittest.TestCase):
         self.controller.menu()
 
         self.view.menu_viatura.assert_called_once_with(self.controller)
-
-
-if __name__ == "__main__":
-    unittest.main()

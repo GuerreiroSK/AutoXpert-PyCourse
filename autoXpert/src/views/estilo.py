@@ -118,6 +118,17 @@ def texto_do_erro(erro):
     return mensagem
 
 
+# Corre uma ação e mostra os erros esperados num aviso, sem fechar o formulário
+# (os dados que o utilizador escreveu ficam lá para ele corrigir).
+def executar_acao(janela, acao):
+    try:
+        acao()
+    except ValueError as erro:
+        mostrar_erro(janela, "Verifique os dados", str(erro))
+    except sqlite3.Error as erro:
+        mostrar_erro(janela, "Erro", texto_do_erro(erro))
+
+
 # ================= Janelas só para mostrar dados =================
 
 # Abre uma janela com uma tabela (usada para listas e históricos).

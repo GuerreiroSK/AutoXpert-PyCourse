@@ -1,9 +1,13 @@
 
 class ViaturaService:
+    # Regras das viaturas. Todo o SQL fica nos repositórios, que são recebidos aqui:
+    # o das viaturas, o dos clientes (para ver se o cliente existe) e o das OTs
+    # (para o histórico da viatura).
 
-    def __init__(self, viatura_repository, conexao):
+    def __init__(self, viatura_repository, cliente_repository, ot_repository):
         self.viatura_repository = viatura_repository
-        self.conexao = conexao
+        self.cliente_repository = cliente_repository
+        self.ot_repository = ot_repository
 
     def registar_viatura(self, viatura):
         # Validar campos obrigatórios
@@ -23,13 +27,9 @@ class ViaturaService:
             raise ValueError("Os quilómetros não podem ser negativos.")
 
         # Verificar se o cliente existe
-        cursor = self.conexao.cursor()
-        cursor.execute(
-            "SELECT id_cliente FROM Cliente WHERE id_cliente = ?",
-            (viatura.id_cliente,)
-        )
+        cliente = self.cliente_repository.obter_por_id(viatura.id_cliente)
 
-        if cursor.fetchone() is None:
+        if cliente is None:
             raise ValueError("O cliente indicado não existe.")
 
         # Verificar se a matrícula já está registada
@@ -109,22 +109,8 @@ class ViaturaService:
 
         return self.viatura_repository.eliminar(id_viatura)
 
+    # Histórico de uma viatura (pela matrícula): as suas OTs, as mais recentes primeiro
     def consultar_historico(self, matricula):
         viatura = self.consultar_por_matricula(matricula)
 
-        cursor = self.conexao.cursor()
-        cursor.execute("""
-            SELECT
-                ot.id_ot,
-                ot.data_entrada,
-                ot.data_prev_saida,
-                ot.data_saida_real,
-                ot.estado,
-                ot.descricao_avaria,
-                ot.custo_total
-            FROM OrdemTrabalho ot
-            WHERE ot.id_viatura = ?
-            ORDER BY ot.data_entrada DESC
-        """, (viatura.id_viatura,))
-
-        return cursor.fetchall()
+        return self.ot_repository.listar_por_viatura(viatura.id_viatura)

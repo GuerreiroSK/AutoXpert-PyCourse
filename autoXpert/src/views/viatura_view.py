@@ -183,9 +183,9 @@ class ViaturaView:
         ]
         linhas = []
         for ot in historico:
-            linhas.append((ot["id_ot"], ot["data_entrada"], ot["data_prev_saida"],
-                           texto(ot["data_saida_real"]), ot["estado"],
-                           ot["descricao_avaria"], ot["custo_total"]))
+            linhas.append((ot.id_ot, ot.data_entrada, ot.data_prev_saida,
+                           texto(ot.data_saida_real), ot.estado,
+                           ot.descricao_avaria, ot.custo_total))
         mostrar_tabela(self.pai(), "Histórico da viatura", colunas, linhas, 860, 440)
 
     # O controller chama estes dois com (título, mensagem)

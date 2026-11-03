@@ -1,184 +1,128 @@
-from src.models.fatura_models import Fatura
-from db.connection import get_connection
+from src.models.fatura_model import Fatura
 
 
 class FaturaRepository:
+    # Todo o SQL da tabela Fatura. A ligação é recebida de fora (como nos outros
+    # repositórios).
+
+    def __init__(self, conexao):
+        self.conexao = conexao
+
+    # Converte uma linha da base de dados num objeto Fatura
+    def _linha_para_objeto(self, linha):
+        return Fatura(
+            id_fatura=linha["id_fatura"],
+            id_ot=linha["id_ot"],
+            data_emissao=linha["data_emissao"],
+            valor_total=linha["valor_total"],
+            pago=linha["pago"],
+            data_pagamento=linha["data_pagamento"],
+            metodo_pagamento=linha["metodo_pagamento"]
+        )
+
+    def _lista_de_objetos(self, linhas):
+        faturas = []
+        for linha in linhas:
+            faturas.append(self._linha_para_objeto(linha))
+        return faturas
+
+    # CREATE - grava a fatura e preenche o id gerado pela base de dados
     def inserir(self, fatura):
-        with get_connection() as conn:
-            cur = conn.execute(
-                """
-                INSERT INTO Fatura (
-                    id_ot, data_emissao, valor_total,
-                    pago, data_pagamento, metodo_pagamento
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    fatura.id_ot,
-                    fatura.data_emissao,
-                    fatura.valor_total,
-                    fatura.pago,
-                    fatura.data_pagamento,
-                    fatura.metodo_pagamento
-                )
-            )
-
-            fatura.id_fatura = cur.lastrowid
-
+        cursor = self.conexao.execute(
+            "INSERT INTO Fatura (id_ot, data_emissao, valor_total, pago, "
+            "data_pagamento, metodo_pagamento) VALUES (?, ?, ?, ?, ?, ?)",
+            (fatura.id_ot, fatura.data_emissao, fatura.valor_total, fatura.pago,
+             fatura.data_pagamento, fatura.metodo_pagamento)
+        )
+        self.conexao.commit()
+        fatura.id_fatura = cursor.lastrowid
         return fatura
 
+    # READ - todas as faturas
     def listar_todos(self):
-        with get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM Fatura ORDER BY id_fatura"
-            ).fetchall()
+        linhas = self.conexao.execute(
+            "SELECT * FROM Fatura ORDER BY id_fatura"
+        ).fetchall()
+        return self._lista_de_objetos(linhas)
 
-        return [
-            Fatura(
-                id_fatura=r["id_fatura"],
-                id_ot=r["id_ot"],
-                data_emissao=r["data_emissao"],
-                valor_total=r["valor_total"],
-                pago=r["pago"],
-                data_pagamento=r["data_pagamento"],
-                metodo_pagamento=r["metodo_pagamento"]
-            )
-            for r in rows
-        ]
-
-    # READ - Obter fatura pelo ID
+    # READ - uma fatura pelo ID (ou None)
     def obter_por_id(self, id_fatura):
-        with get_connection() as conn:
-            r = conn.execute(
-                "SELECT * FROM Fatura WHERE id_fatura = ?",
-                (id_fatura,)
-            ).fetchone()
+        linha = self.conexao.execute(
+            "SELECT * FROM Fatura WHERE id_fatura = ?",
+            (id_fatura,)
+        ).fetchone()
 
-        if r is None:
+        if linha is None:
             return None
+        return self._linha_para_objeto(linha)
 
-        return Fatura(
-            id_fatura=r["id_fatura"],
-            id_ot=r["id_ot"],
-            data_emissao=r["data_emissao"],
-            valor_total=r["valor_total"],
-            pago=bool(r["pago"]),
-            data_pagamento=r["data_pagamento"],
-            metodo_pagamento=r["metodo_pagamento"]
-        )
-
-    # READ - Obter fatura pela OT (para salvaguardar que não criamos uma fatura para uma OT que já tem fatura. Check nos Services.)
+    # READ - a fatura de uma OT (ou None). O service usa-o para não criar duas
+    # faturas para a mesma OT.
     def obter_por_ot(self, id_ot):
-        with get_connection() as conn:
-            r = conn.execute(
-                "SELECT * FROM Fatura WHERE id_ot = ?",
-                (id_ot,)
-            ).fetchone()
+        linha = self.conexao.execute(
+            "SELECT * FROM Fatura WHERE id_ot = ?",
+            (id_ot,)
+        ).fetchone()
 
-        if r is None:
+        if linha is None:
             return None
+        return self._linha_para_objeto(linha)
 
-        return Fatura(
-            id_fatura=r["id_fatura"],
-            id_ot=r["id_ot"],
-            data_emissao=r["data_emissao"],
-            valor_total=r["valor_total"],
-            pago=bool(r["pago"]),
-            data_pagamento=r["data_pagamento"],
-            metodo_pagamento=r["metodo_pagamento"]
-        )
-
-    # UPDATE - Atualizar fatura
+    # UPDATE - devolve True se a fatura existia
     def atualizar(self, fatura):
-        with get_connection() as conn:
-            cur = conn.execute(
-                """
-                UPDATE Fatura
-                SET id_ot = ?,
-                    data_emissao = ?,
-                    valor_total = ?,
-                    pago = ?,
-                    data_pagamento = ?,
-                    metodo_pagamento = ?
-                WHERE id_fatura = ?
-                """,
-                (
-                    fatura.id_ot,
-                    fatura.data_emissao,
-                    fatura.valor_total,
-                    fatura.pago,
-                    fatura.data_pagamento,
-                    fatura.metodo_pagamento,
-                    fatura.id_fatura
-                )
-            )
+        cursor = self.conexao.execute(
+            "UPDATE Fatura SET id_ot = ?, data_emissao = ?, valor_total = ?, "
+            "pago = ?, data_pagamento = ?, metodo_pagamento = ? "
+            "WHERE id_fatura = ?",
+            (fatura.id_ot, fatura.data_emissao, fatura.valor_total, fatura.pago,
+             fatura.data_pagamento, fatura.metodo_pagamento, fatura.id_fatura)
+        )
+        self.conexao.commit()
+        return cursor.rowcount > 0
 
-        return cur.rowcount > 0
-
-    # DELETE - Eliminar fatura
+    # DELETE - devolve True se a fatura existia
     def eliminar(self, id_fatura):
-        with get_connection() as conn:
-            cur = conn.execute(
-                "DELETE FROM Fatura WHERE id_fatura = ?",
-                (id_fatura,)
-            )
+        cursor = self.conexao.execute(
+            "DELETE FROM Fatura WHERE id_fatura = ?",
+            (id_fatura,)
+        )
+        self.conexao.commit()
+        return cursor.rowcount > 0
 
-        return cur.rowcount > 0
-
-    # READ - Listar faturas de determinado mês
-    # strftime - Essa expressão é uma função do SQLite que permite extrair uma parte de uma data. (ou seja, estamos a selecionar uma fatura por mes/ano)
+    # READ - faturas emitidas num mês/ano.
+    # strftime é uma função do SQLite que extrai uma parte da data.
     def listar_por_mes(self, mes, ano):
-        with get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM Fatura
-                WHERE strftime('%m', data_emissao) = ?
-                AND strftime('%Y', data_emissao) = ?
-                ORDER BY data_emissao
-                """,
-                (f"{mes:02d}", str(ano))
-            ).fetchall()
+        if mes < 10:
+            mes_texto = "0" + str(mes)
+        else:
+            mes_texto = str(mes)
 
-        return [
-            Fatura(
-                id_fatura=r["id_fatura"],
-                id_ot=r["id_ot"],
-                data_emissao=r["data_emissao"],
-                valor_total=r["valor_total"],
-                pago=bool(r["pago"]),
-                data_pagamento=r["data_pagamento"],
-                metodo_pagamento=r["metodo_pagamento"]
-            )
-            for r in rows
-        ]
+        linhas = self.conexao.execute(
+            "SELECT * FROM Fatura WHERE strftime('%m', data_emissao) = ? "
+            "AND strftime('%Y', data_emissao) = ? ORDER BY data_emissao",
+            (mes_texto, str(ano))
+        ).fetchall()
+        return self._lista_de_objetos(linhas)
 
-
-    # READ - Obter linhas de uma Ordem de Trabalho
+    # READ - linhas de uma OT, como dicionários, para o service calcular o valor total
     def obter_linhas_ot(self, id_ot):
-        with get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT tipo, descricao, quantidade,
-                    horas_trabalhadas, preco_unitario
-                FROM LinhaOT
-                WHERE id_ot = ?
-                """,
-                (id_ot,)
-            ).fetchall()
+        linhas = self.conexao.execute(
+            "SELECT tipo, descricao, quantidade, horas_trabalhadas, preco_unitario "
+            "FROM LinhaOT WHERE id_ot = ?",
+            (id_ot,)
+        ).fetchall()
 
-        return [dict(r) for r in rows] #transforma em dicionario o resultado de cada linha para calcular o valor total da fatura no Service
+        resultado = []
+        for linha in linhas:
+            resultado.append(dict(linha))
+        return resultado
 
+    # Marca a fatura como paga; devolve True se a fatura existia
     def marcar_como_paga(self, id_fatura, data_pagamento, metodo_pagamento):
-        with get_connection() as conn:
-            cur = conn.execute(
-                """
-                UPDATE Fatura
-                SET pago = 1,
-                    data_pagamento = ?,
-                    metodo_pagamento = ?
-                WHERE id_fatura = ?
-                """,
-                (data_pagamento, metodo_pagamento, id_fatura)
-            )
-        return cur.rowcount > 0
+        cursor = self.conexao.execute(
+            "UPDATE Fatura SET pago = 1, data_pagamento = ?, metodo_pagamento = ? "
+            "WHERE id_fatura = ?",
+            (data_pagamento, metodo_pagamento, id_fatura)
+        )
+        self.conexao.commit()
+        return cursor.rowcount > 0

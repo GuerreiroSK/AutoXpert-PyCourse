@@ -1,9 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from datetime import date
 
 from src.views.linha_ot_view import PainelLinhasOT
-from src.views.estilo import criar_cabecalho
+from src.views.estilo import criar_cabecalho, mostrar_erro, mostrar_info
 
 
 class JanelaOTs:
@@ -162,7 +162,7 @@ class JanelaOTs:
         self.mensagem.set(texto)
 
     def mostrar_erro(self, mensagem):
-        messagebox.showerror("Erro", mensagem, parent=self.raiz)
+        mostrar_erro(self.raiz, "Erro", mensagem)
         self.dizer("")
 
     def valores_da_ot(self, ot):
@@ -173,8 +173,7 @@ class JanelaOTs:
     # Devolve o id da OT selecionada, ou avisa o utilizador se não houver nenhuma
     def ot_selecionada(self):
         if self.id_ot_atual is None:
-            messagebox.showinfo("Atenção", "Selecione primeiro uma OT na lista.",
-                                parent=self.raiz)
+            mostrar_info(self.raiz, "Atenção", "Selecione primeiro uma OT na lista.")
             return None
         return self.id_ot_atual
 
@@ -365,7 +364,7 @@ class DialogoNovaOT:
             self.entrada_data_entrada.get(), self.entrada_data_prevista.get(),
             self.entrada_descricao.get())
         if not ok:
-            messagebox.showerror("Erro", resultado, parent=self.janela)
+            mostrar_erro(self.janela, "Erro", resultado)
             return
         self.janela.destroy()
         self.ao_criar(resultado)

@@ -1,21 +1,20 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.models.log_alteracao_ot import LogAlteracaoOT
+from src.models.log_alteracao_ot_model import LogAlteracaoOT
 from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 
 
 class TestLogAlteracaoOTService(unittest.TestCase):
 
     def setUp(self):
-        # Mock limpo antes de cada teste: nem a base de dados nem o repositório são reais
+        # Mocks limpos antes de cada teste: nem a base de dados nem os repositórios são reais
         self.mock_repo = MagicMock()
-        self.mock_conexao = MagicMock()
-        self.cursor = self.mock_conexao.cursor.return_value
-        # Por defeito, a OT existe (o service faz SELECT e chama fetchone)
-        self.cursor.fetchone.return_value = (1,)
+        self.mock_ot_repo = MagicMock()
+        # Por defeito, a OT existe
+        self.mock_ot_repo.procurar_por_id.return_value = MagicMock()
 
-        self.svc = LogAlteracaoOTService(self.mock_repo, self.mock_conexao)
+        self.svc = LogAlteracaoOTService(self.mock_repo, self.mock_ot_repo)
 
     # ----- registar_alteracao: validações -----
 
@@ -35,7 +34,7 @@ class TestLogAlteracaoOTService(unittest.TestCase):
                 self.mock_repo.registar.assert_not_called()
 
     def test_ot_inexistente_levanta_erro(self):
-        self.cursor.fetchone.return_value = None
+        self.mock_ot_repo.procurar_por_id.return_value = None
 
         with self.assertRaises(ValueError):
             self.svc.registar_alteracao(99, "estado", "Pendente", "Concluída")
@@ -113,7 +112,7 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         self.mock_repo.listar_por_ot.assert_called_once_with(1)
 
     def test_listar_por_ot_inexistente_levanta_erro(self):
-        self.cursor.fetchone.return_value = None
+        self.mock_ot_repo.procurar_por_id.return_value = None
 
         with self.assertRaises(ValueError):
             self.svc.listar_alteracoes_por_ot(99)
@@ -138,7 +137,3 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         self.mock_repo.listar_todos.return_value = []
 
         self.assertEqual(self.svc.listar_todas_alteracoes(), [])
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -9,14 +9,19 @@ CAMINHO_SCHEMA = Path(__file__).resolve().parents[2] / "db" / "schema.sql"
 
 
 # Cria uma base de dados SQLite em memória, só para os testes (desaparece no fim),
-# com o schema real e alguns registos de que as OTs dependem:
-#   2 viaturas (ids 1 e 2), 2 técnicos (ids 1 e 2), 2 peças (ids 1 e 2).
-# Nunca toca em db/autoxpert.db.
-def criar_conexao_teste():
+# com o schema real e as tabelas VAZIAS. Nunca toca em db/autoxpert.db.
+def criar_conexao_vazia():
     conexao = sqlite3.connect(":memory:")
     conexao.row_factory = sqlite3.Row  # igual a db/connection.py
     conexao.execute("PRAGMA foreign_keys = ON")
     conexao.executescript(CAMINHO_SCHEMA.read_text(encoding="utf-8"))
+    return conexao
+
+
+# Igual à anterior, mas já com alguns registos de que as OTs dependem:
+#   2 viaturas (ids 1 e 2), 2 técnicos (ids 1 e 2), 2 peças (ids 1 e 2).
+def criar_conexao_teste():
+    conexao = criar_conexao_vazia()
     conexao.executescript("""
     INSERT INTO Cliente (nome, NIF) VALUES ('Cliente Teste', '123456789');
 

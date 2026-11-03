@@ -1,23 +1,24 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.models.viatura import Viatura
+from src.models.viatura_model import Viatura
 from src.services.viatura_service import ViaturaService
 
 
 class TestViaturaService(unittest.TestCase):
-    # Testes unitários: o repositório e a ligação à base de dados são MagicMock,
+    # Testes unitários: os três repositórios (viaturas, clientes e OTs) são MagicMock,
     # por isso não há base de dados.
 
     def setUp(self):
         # Executado antes de CADA teste: cria mocks limpos
         self.mock_repo = MagicMock()
-        self.mock_conexao = MagicMock()
-        self.cursor = self.mock_conexao.cursor.return_value
-        # Por defeito, o cliente existe (o service faz SELECT e chama fetchone)
-        self.cursor.fetchone.return_value = (1,)
+        self.mock_cliente_repo = MagicMock()
+        self.mock_ot_repo = MagicMock()
+        # Por defeito, o cliente existe
+        self.mock_cliente_repo.obter_por_id.return_value = MagicMock()
 
-        self.svc = ViaturaService(self.mock_repo, self.mock_conexao)
+        self.svc = ViaturaService(self.mock_repo, self.mock_cliente_repo,
+                                  self.mock_ot_repo)
 
     # Cria uma viatura válida; cada teste pode mudar os campos que precisar
     def _viatura(self, matricula="AA-00-BB", marca="BMW", modelo="Serie 1",
@@ -63,7 +64,7 @@ class TestViaturaService(unittest.TestCase):
         self.mock_repo.criar.assert_not_called()
 
     def test_registar_com_cliente_inexistente_levanta_erro(self):
-        self.cursor.fetchone.return_value = None   # o SELECT não encontrou o cliente
+        self.mock_cliente_repo.obter_por_id.return_value = None   # o cliente não existe
 
         with self.assertRaises(ValueError):
             self.svc.registar_viatura(self._viatura(id_cliente=99))
@@ -290,18 +291,17 @@ class TestViaturaService(unittest.TestCase):
 
     def test_historico_procura_as_ots_da_viatura(self):
         self.mock_repo.obter_por_matricula.return_value = self._viatura(id_viatura=7)
-        self.cursor.fetchall.return_value = [("ot1",), ("ot2",)]
+        self.mock_ot_repo.listar_por_viatura.return_value = ["ot1", "ot2"]
 
         resultado = self.svc.consultar_historico("AA-00-BB")
 
         self.assertEqual(len(resultado), 2)
-        self.cursor.execute.assert_called_once()
-        # O 2.º argumento do execute são os parâmetros do SQL: o id da viatura
-        self.assertEqual(self.cursor.execute.call_args[0][1], (7,))
+        # O repositório das OTs recebe o id da viatura encontrada pela matrícula
+        self.mock_ot_repo.listar_por_viatura.assert_called_once_with(7)
 
     def test_historico_sem_ots_devolve_lista_vazia(self):
         self.mock_repo.obter_por_matricula.return_value = self._viatura(id_viatura=7)
-        self.cursor.fetchall.return_value = []
+        self.mock_ot_repo.listar_por_viatura.return_value = []
 
         self.assertEqual(self.svc.consultar_historico("AA-00-BB"), [])
 
@@ -311,15 +311,11 @@ class TestViaturaService(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.svc.consultar_historico("ZZ-99-ZZ")
 
-        self.cursor.execute.assert_not_called()
+        self.mock_ot_repo.listar_por_viatura.assert_not_called()
 
     def test_historico_sem_matricula_levanta_erro(self):
         for matricula in ("", "   ", None):
             with self.subTest(matricula=matricula):
                 with self.assertRaises(ValueError):
                     self.svc.consultar_historico(matricula)
-                self.cursor.execute.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()
+                self.mock_ot_repo.listar_por_viatura.assert_not_called()

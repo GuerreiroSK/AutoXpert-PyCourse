@@ -1,5 +1,5 @@
 
-from src.models.viatura import Viatura
+from src.models.viatura_model import Viatura
 
 
 class ViaturaController:

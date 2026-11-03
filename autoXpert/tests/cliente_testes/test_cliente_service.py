@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from src.services.cliente_service import ClienteService
-from src.models.cliente_models import Cliente
+from src.models.cliente_model import Cliente
 
 
 class TestClienteService(unittest.TestCase):
@@ -191,7 +191,3 @@ class TestClienteService(unittest.TestCase):
             self.svc.eliminar(999)
 
         self.mock_repo.eliminar.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()
