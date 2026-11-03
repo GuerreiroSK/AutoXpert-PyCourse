@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import MagicMock
 
 from src.controllers.peca_controller import PecaController
 from src.controllers.tecnico_controller import TecnicoController
@@ -9,7 +9,7 @@ from src.models.tecnico import Tecnico
 
 class TecnicoControllerTests(unittest.TestCase):
     def setUp(self):
-        self.servico = Mock()
+        self.servico = MagicMock()
         self.controller = TecnicoController(self.servico)
 
     def test_listar_obter_e_eliminar_chamam_o_servico(self):
@@ -46,10 +46,46 @@ class TecnicoControllerTests(unittest.TestCase):
 
         self.servico.guardar.assert_not_called()
 
+    def test_obter_devolve_tecnico_do_servico(self):
+        # Arrange
+        esperado = Tecnico("Ana", "Motor", 20.0, True, 8)
+        self.servico.obter.return_value = esperado
 
+        # Act
+        resultado = self.controller.obter(8)
+
+        # Assert
+        self.servico.obter.assert_called_once_with(8)
+        self.assertIs(resultado, esperado)
+
+    def test_obter_propaga_erro_do_servico(self):
+        self.servico.obter.side_effect = ValueError(
+            "O tecnico selecionado ja nao existe."
+        )
+
+        with self.assertRaisesRegex(ValueError, "ja nao existe"):
+            self.controller.obter(99)
+
+        self.servico.obter.assert_called_once_with(99)
+
+    def test_guardar_rejeita_varios_custos_invalidos(self):
+        for custo in ["", "vinte", "20,5,0"]:
+            with self.subTest(custo=custo):
+                self.servico.reset_mock()
+                dados = {
+                    "nome": "Ana",
+                    "especialidade": "Motor",
+                    "custo_hora": custo,
+                }
+
+                with self.assertRaises(ValueError):
+                    self.controller.guardar(dados, True)
+
+                self.servico.guardar.assert_not_called()
+                
 class PecaControllerTests(unittest.TestCase):
     def setUp(self):
-        self.servico = Mock()
+        self.servico = MagicMock()
         self.controller = PecaController(self.servico)
 
     def test_listar_obter_e_eliminar_chamam_o_servico(self):
@@ -127,5 +163,43 @@ class PecaControllerTests(unittest.TestCase):
         self.servico.receber_stock.assert_not_called()
 
 
+    def test_ajustar_stock_devolve_peca_do_servico(self):
+        esperado = Peca(
+            "F1", "Filtro", 5.0, 10.0, 4, 1, None, 12
+        )
+        self.servico.ajustar_stock.return_value = esperado
+
+        resultado = self.controller.ajustar_stock(12, "2")
+
+        self.servico.ajustar_stock.assert_called_once_with(12, 2)
+        self.assertIs(resultado, esperado)
+    
+    def test_ajustar_stock_rejeita_variacao_invalida(self):
+        for variacao in ["", "duas", "1.5"]:
+            with self.subTest(variacao=variacao):
+                self.servico.reset_mock()
+
+                with self.assertRaises(ValueError):
+                    self.controller.ajustar_stock(12, variacao)
+
+                self.servico.ajustar_stock.assert_not_called()
+                
+    def test_receber_stock_rejeita_preco_invalido(self):
+        with self.assertRaises(ValueError):
+            self.controller.receber_stock(
+                12, "3", "Loja", "cinco"
+            )
+
+        self.servico.receber_stock.assert_not_called()
+    def test_ajustar_stock_propaga_erro_do_servico(self):
+        self.servico.ajustar_stock.side_effect = ValueError(
+            "A saida pedida excede o stock disponivel."
+        )
+
+        with self.assertRaisesRegex(ValueError, "excede o stock"):
+            self.controller.ajustar_stock(12, "-20")
+
+        self.servico.ajustar_stock.assert_called_once_with(12, -20)
+        
 if __name__ == "__main__":
     unittest.main()
