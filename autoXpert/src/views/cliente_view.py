@@ -1,6 +1,7 @@
 import sqlite3
 from tkinter import ttk
 
+from src.views.tema import tags_linha_alternada
 from src.views.estilo import (
     criar_janela, criar_cabecalho, criar_tabela, limpar_tabela, criar_barra_estado,
     texto, pedir_dados, mostrar_erro, perguntar_sim_nao, texto_do_erro
@@ -49,7 +50,7 @@ class ClienteView:
                    command=self.adicionar_cliente).pack(side="left", padx=(0, 5))
         ttk.Button(barra_botoes, text="Editar",
                    command=self.editar_cliente).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Eliminar",
+        ttk.Button(barra_botoes, text="Eliminar", style="Perigo.TButton",
                    command=self.eliminar_cliente).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Atualizar lista",
                    command=self.listar_clientes).pack(side="left", padx=5)
@@ -72,7 +73,8 @@ class ClienteView:
         for c in clientes:
             self.tabela.insert("", "end", iid=str(c.id_cliente), values=(
                 c.id_cliente, c.nome, texto(c.nif), texto(c.telefone),
-                texto(c.email), texto(c.morada), texto(c.data_registo)))
+                texto(c.email), texto(c.morada), texto(c.data_registo)),
+                tags=tags_linha_alternada(self.tabela))
         if len(clientes) == 0:
             self.barra.set("Não existem clientes registados.")
         else:

@@ -2,6 +2,7 @@ import sqlite3
 from datetime import date
 from tkinter import ttk
 
+from src.views.tema import tags_linha_alternada
 from src.views.estilo import (
     criar_janela, criar_cabecalho, criar_tabela, limpar_tabela, criar_barra_estado,
     texto, pedir_dados, pedir_inteiro, mostrar_erro, mostrar_info, perguntar_sim_nao,
@@ -46,7 +47,7 @@ class FaturaView:
                    command=self.adicionar_fatura).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Marcar como paga",
                    command=self.marcar_paga).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Eliminar",
+        ttk.Button(barra_botoes, text="Eliminar", style="Perigo.TButton",
                    command=self.eliminar_fatura).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Relatório mensal (Excel)",
                    command=self.exportar_relatorio).pack(side="left", padx=5)
@@ -73,7 +74,8 @@ class FaturaView:
                 pago = "Não"
             self.tabela.insert("", "end", iid=str(f.id_fatura), values=(
                 f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2), pago,
-                texto(f.data_pagamento), texto(f.metodo_pagamento)))
+                texto(f.data_pagamento), texto(f.metodo_pagamento)),
+                tags=tags_linha_alternada(self.tabela))
         if len(faturas) == 0:
             self.barra.set("Não existem faturas registadas.")
         else:

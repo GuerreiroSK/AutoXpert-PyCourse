@@ -4,6 +4,7 @@ from datetime import date
 
 from src.views.linha_ot_view import PainelLinhasOT
 from src.views.estilo import criar_cabecalho, mostrar_erro, mostrar_info
+from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
 
 
 class JanelaOTs:
@@ -89,6 +90,7 @@ class JanelaOTs:
 
         self.lista = ttk.Treeview(quadro, columns=nomes, show="headings",
                                   height=7, selectmode="browse")
+        configurar_linhas_alternadas(self.lista)
         for nome, titulo, largura in colunas:
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=largura, anchor="center")
@@ -188,7 +190,8 @@ class JanelaOTs:
         for item in self.lista.get_children():
             self.lista.delete(item)
         for ot in dados:
-            self.lista.insert("", "end", iid=str(ot.id_ot), values=self.valores_da_ot(ot))
+            self.lista.insert("", "end", iid=str(ot.id_ot), values=self.valores_da_ot(ot),
+                              tags=tags_linha_alternada(self.lista))
         self.limpar_detalhe()
         self.dizer(str(len(dados)) + " OT(s) encontrada(s)")
 

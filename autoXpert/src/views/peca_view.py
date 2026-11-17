@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from src.views.estilo import executar_acao, perguntar_sim_nao
+from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
 
 
 class PecaView(ttk.Frame):
@@ -58,7 +59,7 @@ class PecaView(ttk.Frame):
         ttk.Button(botoes, text="Nova", command=self.nova).pack(side="left")
         ttk.Button(botoes, text="Guardar",
                    command=self.clicar_guardar).pack(side="left", padx=6)
-        ttk.Button(botoes, text="Eliminar",
+        ttk.Button(botoes, text="Eliminar", style="Perigo.TButton",
                    command=self.clicar_eliminar).pack(side="left")
         ttk.Button(botoes, text="Atualizar lista",
                    command=self.clicar_atualizar).pack(side="left", padx=6)
@@ -95,6 +96,7 @@ class PecaView(ttk.Frame):
 
         self.lista = ttk.Treeview(quadro, columns=nomes, show="headings",
                                   selectmode="browse", height=7)
+        configurar_linhas_alternadas(self.lista)
         for nome, titulo in colunas:
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=100, minwidth=50)
@@ -150,7 +152,8 @@ class PecaView(ttk.Frame):
             self.lista.insert("", "end", iid=str(peca.id_peca), values=(
                 peca.id_peca, peca.referencia, peca.nome, peca.stock_atual,
                 peca.stock_minimo, round(peca.preco_compra, 2),
-                round(peca.preco_venda, 2), alerta), tags=etiquetas)
+                round(peca.preco_venda, 2), alerta),
+                tags=tags_linha_alternada(self.lista, etiquetas))
         self.nova()
         self.estado.set(str(len(pecas)) + " peça(s). Selecione uma linha para editar "
                         "ou movimentar stock.")

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from src.views.estilo import executar_acao, perguntar_sim_nao
+from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
 
 
 class TecnicoView(ttk.Frame):
@@ -51,7 +52,7 @@ class TecnicoView(ttk.Frame):
         ttk.Button(botoes, text="Novo", command=self.novo).pack(side="left")
         ttk.Button(botoes, text="Guardar",
                    command=self.clicar_guardar).pack(side="left", padx=6)
-        ttk.Button(botoes, text="Eliminar",
+        ttk.Button(botoes, text="Eliminar", style="Perigo.TButton",
                    command=self.clicar_eliminar).pack(side="left")
         ttk.Button(botoes, text="Atualizar lista",
                    command=self.clicar_atualizar).pack(side="left", padx=6)
@@ -72,6 +73,7 @@ class TecnicoView(ttk.Frame):
 
         self.lista = ttk.Treeview(quadro, columns=nomes, show="headings",
                                   selectmode="browse")
+        configurar_linhas_alternadas(self.lista)
         for nome, titulo in colunas:
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=140, minwidth=60)
@@ -120,7 +122,8 @@ class TecnicoView(ttk.Frame):
                 especialidade = tecnico.especialidade
             self.lista.insert("", "end", iid=str(tecnico.id_tecnico), values=(
                 tecnico.id_tecnico, tecnico.nome, especialidade,
-                round(tecnico.custo_hora, 2), ativo))
+                round(tecnico.custo_hora, 2), ativo),
+                tags=tags_linha_alternada(self.lista))
         self.novo()
         self.estado.set(str(len(tecnicos))
                         + " técnico(s). Selecione uma linha para editar.")
