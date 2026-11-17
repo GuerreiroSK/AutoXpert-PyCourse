@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from src.views.estilo import executar_acao, perguntar_sim_nao
+from src.views.estilo import executar_acao, perguntar_sim_nao, PesquisaTabela
 
 
 class TecnicoView(ttk.Frame):
@@ -62,7 +62,11 @@ class TecnicoView(ttk.Frame):
         quadro = ttk.Frame(self)
         quadro.grid(row=5, column=0, columnspan=2, sticky="nsew")
         quadro.columnconfigure(0, weight=1)
-        quadro.rowconfigure(0, weight=1)
+        # Barra de pesquisa por cima da lista, dentro do mesmo quadro: assim não
+        # mexe nas linhas do formulário que ficam acima (a lista passa para a linha 1)
+        quadro.rowconfigure(1, weight=1)
+        self.pesquisa = PesquisaTabela(quadro, self.mostrar_contagem)
+        self.pesquisa.quadro.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         colunas = [("id", "ID"), ("nome", "Nome"), ("especialidade", "Especialidade"),
                    ("custo_hora", "Custo/hora (€)"), ("ativo", "Ativo")]
@@ -75,10 +79,11 @@ class TecnicoView(ttk.Frame):
         for nome, titulo in colunas:
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=140, minwidth=60)
-        self.lista.grid(row=0, column=0, sticky="nsew")
+        self.lista.grid(row=1, column=0, sticky="nsew")
+        self.pesquisa.associar(self.lista)
 
         barra = ttk.Scrollbar(quadro, orient="vertical", command=self.lista.yview)
-        barra.grid(row=0, column=1, sticky="ns")
+        barra.grid(row=1, column=1, sticky="ns")
         self.lista.configure(yscrollcommand=barra.set)
         self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar)
 
@@ -108,7 +113,7 @@ class TecnicoView(ttk.Frame):
 
     def carregar(self):
         tecnicos = self.controller.listar(self.apenas_ativos.get())
-        self.lista.delete(*self.lista.get_children())
+        linhas = []
         for tecnico in tecnicos:
             if tecnico.ativo:
                 ativo = "Sim"
@@ -118,12 +123,20 @@ class TecnicoView(ttk.Frame):
                 especialidade = ""
             else:
                 especialidade = tecnico.especialidade
-            self.lista.insert("", "end", iid=str(tecnico.id_tecnico), values=(
-                tecnico.id_tecnico, tecnico.nome, especialidade,
-                round(tecnico.custo_hora, 2), ativo))
+            valores = (tecnico.id_tecnico, tecnico.nome, especialidade,
+                       round(tecnico.custo_hora, 2), ativo)
+            linhas.append((str(tecnico.id_tecnico), valores, ()))
+        # A lista completa fica na PesquisaTabela; a tabela mostra só o que passa no filtro
+        self.pesquisa.definir_linhas(linhas)
         self.novo()
-        self.estado.set(str(len(tecnicos))
-                        + " técnico(s). Selecione uma linha para editar.")
+        self.mostrar_contagem(len(self.lista.get_children()), len(tecnicos))
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if self.pesquisa.pesquisa_ativa():
+            self.estado.set(str(visiveis) + " de " + str(total) + " técnico(s).")
+        else:
+            self.estado.set(str(total) + " técnico(s). Selecione uma linha para editar.")
 
     def ao_selecionar(self, evento):
         if self.lista.selection():

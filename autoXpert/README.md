@@ -14,6 +14,7 @@ Aplicação de gestão de uma oficina automóvel, feita em **Python** no projeto
 | Peças | catálogo, stock, receção de material, ajuste de stock e alerta de stock baixo |
 | Ordens de trabalho (OT) | criar OT, atribuir técnico, mudar de estado, linhas de mão de obra e de peças, custo total, pesquisas |
 | Faturação | gerar fatura a partir de uma OT, marcar como paga, relatório mensal em Excel |
+| Pesquisa | todas as listagens têm uma barra **"Pesquisar:"** que filtra à medida que se escreve (sem distinguir maiúsculas nem acentos) e um botão **Limpar** |
 | Registo de alterações | consultar as alterações às OTs (o estado e o técnico ficam gravados automaticamente) |
 
 ## Como correr
@@ -103,6 +104,7 @@ autoXpert/
 
 - **Nomes de ficheiros:** `<entidade>_<camada>.py`, por exemplo `peca_service.py`. As entidades são `cliente`, `viatura`, `tecnico`, `peca`, `ot`, `linha_ot`, `fatura` e `log_alteracao_ot`.
 - **Repositórios:** todos são classes que recebem a `conexao` no construtor e devolvem objetos do model. Métodos com os mesmos nomes em todos: `inserir`, `obter_por_id`, `listar_todos`, `atualizar` e `eliminar` (mais os específicos de cada um, como `listar_por_ot`).
+- **Pesquisa nas listagens:** usar sempre a classe `PesquisaTabela` de `estilo.py` (barra + filtro em tempo real). A view entrega-lhe a lista completa com `definir_linhas(...)` e ela trata do resto; não inserir linhas na tabela diretamente.
 - **Erros nas views:** as regras levantam `ValueError`; a view mostra-os sempre através de `estilo.py` (uma caixa de aviso), nunca com `messagebox` diretamente.
 - **Código:** só o que demos no curso (sem `lambda`, `dataclass`, anotações de tipos, `*args`...).
 

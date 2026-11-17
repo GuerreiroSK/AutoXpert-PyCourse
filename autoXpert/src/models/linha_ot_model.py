@@ -20,17 +20,14 @@ class LinhaOT:
         self.preco_unitario = preco_unitario
         self.id_peca = id_peca
 
-    # Calcular o subtotal da linha, considerando mão de obra ou peças
+    # Valor desta linha. Na mão de obra usa as horas, se foram indicadas;
+    # senão (e nas peças) usa a quantidade. Sem este "se", uma linha sem horas
+    # dava erro (None * preço).
     def subtotal(self):
-        if self.tipo == LinhaOT.TIPO_MAO_OBRA:
+        if self.tipo == LinhaOT.TIPO_MAO_OBRA and self.horas_trabalhadas is not None:
             valor = self.horas_trabalhadas * self.preco_unitario
-
-        elif self.tipo == LinhaOT.TIPO_PECA:
-            valor = self.quantidade * self.preco_unitario
-
         else:
-            raise ValueError("Tipo de linha inválido.")
-
+            valor = self.quantidade * self.preco_unitario
         return round(valor, 2)
 
     def __str__(self):

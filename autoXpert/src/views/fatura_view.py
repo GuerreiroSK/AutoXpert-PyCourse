@@ -3,7 +3,7 @@ from datetime import date
 from tkinter import ttk
 
 from src.views.estilo import (
-    criar_janela, criar_cabecalho, criar_tabela, limpar_tabela, criar_barra_estado,
+    criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
     texto, pedir_dados, pedir_inteiro, mostrar_erro, mostrar_info, perguntar_sim_nao,
     texto_do_erro
 )
@@ -57,27 +57,37 @@ class FaturaView:
 
         corpo = ttk.Frame(self.janela, padding=10)
         corpo.pack(fill="both", expand=True)
+
+        self.pesquisa = PesquisaTabela(corpo, self.mostrar_contagem)
+        self.pesquisa.quadro.pack(fill="x", pady=(0, 8))
         self.tabela = criar_tabela(corpo, COLUNAS, 12)
+        self.pesquisa.associar(self.tabela)
 
         self.listar_faturas()
 
     # ================= Ações =================
 
     def listar_faturas(self):
-        limpar_tabela(self.tabela)
         faturas = self.controller.listar_faturas()
+        linhas = []
         for f in faturas:
             if f.pago:
                 pago = "Sim"
             else:
                 pago = "Não"
-            self.tabela.insert("", "end", iid=str(f.id_fatura), values=(
-                f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2), pago,
-                texto(f.data_pagamento), texto(f.metodo_pagamento)))
-        if len(faturas) == 0:
+            valores = (f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2),
+                       pago, texto(f.data_pagamento), texto(f.metodo_pagamento))
+            linhas.append((str(f.id_fatura), valores, ()))
+        self.pesquisa.definir_linhas(linhas)
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if total == 0:
             self.barra.set("Não existem faturas registadas.")
+        elif self.pesquisa.pesquisa_ativa():
+            self.barra.set(str(visiveis) + " de " + str(total) + " fatura(s)")
         else:
-            self.barra.set(str(len(faturas)) + " fatura(s)")
+            self.barra.set(str(total) + " fatura(s)")
 
     def gerar_fatura(self):
         id_ot = pedir_inteiro(self.janela, "Gerar fatura", "ID da ordem de trabalho")

@@ -164,7 +164,7 @@ class ViaturaView:
         for v in viaturas:
             linhas.append((v.id_viatura, v.matricula, v.marca, v.modelo, texto(v.ano),
                            texto(v.cor), v.km_entrada, v.id_cliente))
-        mostrar_tabela(self.pai(), "Lista de viaturas", colunas, linhas, 780, 440)
+        mostrar_tabela(self.pai(), "Lista de viaturas", colunas, linhas, 780, 480)
 
     def mostrar_historico(self, historico):
         if not historico:
@@ -186,7 +186,7 @@ class ViaturaView:
             linhas.append((ot.id_ot, ot.data_entrada, ot.data_prev_saida,
                            texto(ot.data_saida_real), ot.estado,
                            ot.descricao_avaria, ot.custo_total))
-        mostrar_tabela(self.pai(), "Histórico da viatura", colunas, linhas, 860, 440)
+        mostrar_tabela(self.pai(), "Histórico da viatura", colunas, linhas, 860, 480)
 
     # O controller chama estes dois com (título, mensagem)
     def mostrar_mensagem(self, titulo, mensagem):
