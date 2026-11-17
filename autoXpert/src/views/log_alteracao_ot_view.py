@@ -99,7 +99,7 @@ class LogAlteracaoOTView:
         for r in registos:
             linhas.append((r.id_log, r.id_ot, r.data_hora, r.campo_alterado,
                            texto(r.valor_anterior), texto(r.valor_novo)))
-        mostrar_tabela(self.pai(), "Lista de alterações", colunas, linhas, 760, 420)
+        mostrar_tabela(self.pai(), "Lista de alterações", colunas, linhas, 760, 480)
 
     # O controller chama estes dois só com a mensagem
     def mostrar_mensagem(self, mensagem):

@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from src.views.estilo import executar_acao, perguntar_sim_nao
+from src.views.estilo import executar_acao, perguntar_sim_nao, PesquisaTabela
 
 
 class PecaView(ttk.Frame):
@@ -84,7 +84,11 @@ class PecaView(ttk.Frame):
         quadro = ttk.Frame(self)
         quadro.grid(row=10, column=0, columnspan=2, sticky="nsew")
         quadro.columnconfigure(0, weight=1)
-        quadro.rowconfigure(0, weight=1)
+        # Barra de pesquisa por cima da lista, dentro do mesmo quadro: assim não
+        # mexe nas linhas do formulário que ficam acima (a lista passa para a linha 1)
+        quadro.rowconfigure(1, weight=1)
+        self.pesquisa = PesquisaTabela(quadro, self.mostrar_contagem)
+        self.pesquisa.quadro.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         colunas = [("id", "ID"), ("referencia", "Referência"), ("nome", "Nome"),
                    ("stock", "Stock"), ("minimo", "Mínimo"), ("compra", "Compra"),
@@ -99,10 +103,11 @@ class PecaView(ttk.Frame):
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=100, minwidth=50)
         self.lista.tag_configure("baixo", background="#fff2cc")
-        self.lista.grid(row=0, column=0, sticky="nsew")
+        self.lista.grid(row=1, column=0, sticky="nsew")
+        self.pesquisa.associar(self.lista)
 
         barra = ttk.Scrollbar(quadro, orient="vertical", command=self.lista.yview)
-        barra.grid(row=0, column=1, sticky="ns")
+        barra.grid(row=1, column=1, sticky="ns")
         self.lista.configure(yscrollcommand=barra.set)
         self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar)
 
@@ -139,7 +144,7 @@ class PecaView(ttk.Frame):
 
     def carregar(self):
         pecas = self.controller.listar(self.apenas_stock_baixo.get())
-        self.lista.delete(*self.lista.get_children())
+        linhas = []
         for peca in pecas:
             if peca.stock_baixo():
                 alerta = "Stock baixo"
@@ -147,13 +152,23 @@ class PecaView(ttk.Frame):
             else:
                 alerta = ""
                 etiquetas = ()
-            self.lista.insert("", "end", iid=str(peca.id_peca), values=(
-                peca.id_peca, peca.referencia, peca.nome, peca.stock_atual,
-                peca.stock_minimo, round(peca.preco_compra, 2),
-                round(peca.preco_venda, 2), alerta), tags=etiquetas)
+            valores = (peca.id_peca, peca.referencia, peca.nome, peca.stock_atual,
+                       peca.stock_minimo, round(peca.preco_compra, 2),
+                       round(peca.preco_venda, 2), alerta)
+            # As etiquetas (cor do stock baixo) vão junto, para a cor se manter
+            # quando a linha volta a aparecer depois de limpar a pesquisa
+            linhas.append((str(peca.id_peca), valores, etiquetas))
+        self.pesquisa.definir_linhas(linhas)
         self.nova()
-        self.estado.set(str(len(pecas)) + " peça(s). Selecione uma linha para editar "
-                        "ou movimentar stock.")
+        self.mostrar_contagem(len(self.lista.get_children()), len(pecas))
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if self.pesquisa.pesquisa_ativa():
+            self.estado.set(str(visiveis) + " de " + str(total) + " peça(s).")
+        else:
+            self.estado.set(str(total) + " peça(s). Selecione uma linha para editar "
+                            "ou movimentar stock.")
 
     def ao_selecionar(self, evento):
         if self.lista.selection():

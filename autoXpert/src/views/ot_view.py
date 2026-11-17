@@ -3,7 +3,7 @@ from tkinter import ttk
 from datetime import date
 
 from src.views.linha_ot_view import PainelLinhasOT
-from src.views.estilo import criar_cabecalho, mostrar_erro, mostrar_info
+from src.views.estilo import criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela
 
 
 class JanelaOTs:
@@ -20,7 +20,7 @@ class JanelaOTs:
         self.id_ot_atual = None  # OT que está selecionada na lista
 
         self.raiz.title("AutoXpert - Ordens de Trabalho")
-        self.raiz.geometry("1180x810")
+        self.raiz.geometry("1180x850")
 
         criar_cabecalho(self.raiz, "Ordens de Trabalho")
         self.criar_pesquisa()
@@ -76,6 +76,13 @@ class JanelaOTs:
             row=2, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
     def criar_lista(self):
+        # Pesquisa rápida por texto sobre a lista que está a ser mostrada (qualquer
+        # coluna: matrícula/viatura, estado, datas...). É diferente dos filtros acima:
+        # esses vão à base de dados, esta só esconde linhas já carregadas e por isso
+        # responde enquanto se escreve.
+        self.pesquisa = PesquisaTabela(self.raiz, self.mostrar_contagem)
+        self.pesquisa.quadro.pack(fill="x", padx=10, pady=(5, 0))
+
         quadro = ttk.Frame(self.raiz)
         quadro.pack(fill="x", padx=10, pady=5)
 
@@ -97,6 +104,7 @@ class JanelaOTs:
         self.lista.configure(yscrollcommand=barra.set)
         self.lista.pack(side="left", fill="x", expand=True)
         barra.pack(side="right", fill="y")
+        self.pesquisa.associar(self.lista)
 
         self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar_ot)
 
@@ -185,12 +193,18 @@ class JanelaOTs:
         if not ok:
             self.mostrar_erro(dados)
             return
-        for item in self.lista.get_children():
-            self.lista.delete(item)
+        linhas = []
         for ot in dados:
-            self.lista.insert("", "end", iid=str(ot.id_ot), values=self.valores_da_ot(ot))
+            linhas.append((str(ot.id_ot), self.valores_da_ot(ot), ()))
+        self.pesquisa.definir_linhas(linhas)
         self.limpar_detalhe()
-        self.dizer(str(len(dados)) + " OT(s) encontrada(s)")
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if self.pesquisa.pesquisa_ativa():
+            self.dizer(str(visiveis) + " de " + str(total) + " OT(s)")
+        else:
+            self.dizer(str(total) + " OT(s) encontrada(s)")
 
     def mostrar_todas(self):
         self.mostrar_lista(self.controller.listar_todas())
@@ -248,8 +262,9 @@ class JanelaOTs:
         self.escrever(self.entrada_tecnico, ot.id_tecnico)
         self.label_custo.config(text="Custo total: " + str(round(ot.custo_total, 2)) + " €")
 
-        if self.lista.exists(str(id_ot)):
-            self.lista.item(str(id_ot), values=self.valores_da_ot(ot))
+        # Atualiza a linha na lista guardada e na tabela (se estiver visível), para a
+        # pesquisa não voltar a mostrar valores antigos (ex.: o estado anterior)
+        self.pesquisa.atualizar_linha(str(id_ot), self.valores_da_ot(ot))
         return True
 
     # Mostra a OT e também as suas linhas
@@ -299,6 +314,9 @@ class JanelaOTs:
 
     # Chamado pelo diálogo quando a OT foi criada
     def ao_criar_ot(self, ot):
+        # Limpa a pesquisa primeiro: se houvesse texto escrito, a OT nova podia ficar
+        # escondida e o selection_set abaixo falhava por a linha não existir
+        self.pesquisa.limpar()
         self.mostrar_todas()
         self.lista.selection_set(str(ot.id_ot))
         self.lista.see(str(ot.id_ot))

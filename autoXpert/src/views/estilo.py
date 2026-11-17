@@ -1,4 +1,5 @@
 import sqlite3
+import unicodedata
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -85,6 +86,124 @@ def limpar_tabela(tabela):
         tabela.delete(item)
 
 
+# ================= Pesquisa nas listagens =================
+# Uma listagem é guardada como lista de linhas; cada linha é um tuplo
+# (iid, valores, etiquetas):
+#   iid       - identificador da linha na tabela (None = deixar o Tkinter escolher)
+#   valores   - tuplo com o texto de cada coluna
+#   etiquetas - tuplo de tags de cor (ex.: ("baixo",)) ou () se não tiver
+
+
+# Põe o texto em minúsculas e sem acentos, para "João", "joao" e "JOÃO" serem iguais.
+# Porquê: quem pesquisa à pressa raramente escreve os acentos, e o enunciado pede
+# uma pesquisa case-insensitive; assim fica também accent-insensitive.
+def normalizar(valor):
+    decomposto = unicodedata.normalize("NFD", str(valor).lower())
+    resultado = ""
+    for letra in decomposto:
+        # "Mn" = marca de acento solta (o ~ de ã, o ´ de é...): deita-se fora
+        if unicodedata.category(letra) != "Mn":
+            resultado = resultado + letra
+    return resultado
+
+
+# Diz se o termo aparece em algum dos valores da linha
+def linha_contem(valores, termo_normalizado):
+    for valor in valores:
+        if termo_normalizado in normalizar(valor):
+            return True
+    return False
+
+
+# Função genérica de filtro (T3.3): mostra na tabela só as linhas que contêm o termo.
+# Recebe a lista COMPLETA de linhas e nunca a altera: a lista completa fica sempre
+# guardada à parte, para voltar a mostrar tudo quando a pesquisa é limpa (T3.4).
+# Devolve quantas linhas ficaram visíveis. Termo vazio = mostra tudo.
+def filtrar_tabela(tabela, linhas, termo):
+    termo_normalizado = normalizar(termo.strip())
+    limpar_tabela(tabela)
+    visiveis = 0
+    for iid, valores, etiquetas in linhas:
+        if termo_normalizado == "" or linha_contem(valores, termo_normalizado):
+            if iid is None:
+                tabela.insert("", "end", values=valores, tags=etiquetas)
+            else:
+                tabela.insert("", "end", iid=iid, values=valores, tags=etiquetas)
+            visiveis = visiveis + 1
+    return visiveis
+
+
+class PesquisaTabela:
+    # Barra "Pesquisar: [______] [Limpar]" ligada a uma tabela (T3.1 e T3.2).
+    # É uma classe (e não só uma função) porque tem de guardar três coisas entre
+    # chamadas: a lista completa de linhas, a tabela e o texto escrito. Assim todas as
+    # views usam exatamente a mesma barra e o mesmo comportamento.
+    #
+    # Como usar numa view:
+    #   self.pesquisa = PesquisaTabela(pai, self.mostrar_contagem)
+    #   self.pesquisa.quadro.pack(...)           # ou .grid(...), conforme a janela
+    #   self.tabela = criar_tabela(...)
+    #   self.pesquisa.associar(self.tabela)
+    #   ...
+    #   self.pesquisa.definir_linhas(linhas)     # sempre que a lista é (re)carregada
+
+    def __init__(self, pai, ao_filtrar=None):
+        self.tabela = None
+        # Lista completa (T3.4). Fica aqui, nunca no controller: o controller continua
+        # a devolver os dados da base de dados e a view só decide o que mostra.
+        self.linhas = []
+        # Função chamada com (visiveis, total) a cada filtro, para a view atualizar
+        # a barra de estado (ex.: "3 de 12 cliente(s)")
+        self.ao_filtrar = ao_filtrar
+
+        self.termo = tk.StringVar(pai)
+        self.quadro = ttk.Frame(pai)
+        ttk.Label(self.quadro, text="Pesquisar:").pack(side="left")
+        entrada = ttk.Entry(self.quadro, textvariable=self.termo, width=32)
+        entrada.pack(side="left", padx=6)
+        ttk.Button(self.quadro, text="Limpar", command=self.limpar).pack(side="left")
+
+        # trace_add("write", ...) chama a função sempre que o texto muda, por isso a
+        # lista filtra-se à medida que se escreve, sem botão "Pesquisar" (T3.2).
+        # O Tkinter chama-a sempre com 3 argumentos (nome, índice, modo) que não nos
+        # interessam; o lambda com *_ serve para os ignorar e chamar só o filtrar().
+        self.termo.trace_add("write", lambda *_: self.filtrar())
+
+    def associar(self, tabela):
+        self.tabela = tabela
+
+    # Guarda a lista completa e mostra-a já filtrada pelo termo que estiver escrito.
+    # Porquê manter o termo: se o utilizador pesquisou "ana" e depois edita um cliente,
+    # a lista recarrega-se e a pesquisa continua ativa em vez de "desaparecer".
+    def definir_linhas(self, linhas):
+        self.linhas = linhas
+        self.filtrar()
+
+    def filtrar(self):
+        if self.tabela is None:
+            return
+        visiveis = filtrar_tabela(self.tabela, self.linhas, self.termo.get())
+        if self.ao_filtrar is not None:
+            self.ao_filtrar(visiveis, len(self.linhas))
+
+    def limpar(self):
+        # Escrever "" muda o texto, o que dispara o trace e repõe a lista completa
+        self.termo.set("")
+
+    def pesquisa_ativa(self):
+        return self.termo.get().strip() != ""
+
+    # Atualiza uma linha na lista completa e, se estiver visível, na tabela.
+    # Porquê: se só mudássemos a tabela, a lista guardada ficava desatualizada e o
+    # valor antigo voltava a aparecer na próxima pesquisa.
+    def atualizar_linha(self, iid, valores):
+        for i in range(len(self.linhas)):
+            if self.linhas[i][0] == iid:
+                self.linhas[i] = (iid, valores, self.linhas[i][2])
+        if self.tabela is not None and self.tabela.exists(iid):
+            self.tabela.item(iid, values=valores)
+
+
 # None aparece como texto vazio
 def texto(valor):
     if valor is None:
@@ -139,9 +258,18 @@ def mostrar_tabela(pai, titulo, colunas, linhas, largura, altura):
 
     corpo = ttk.Frame(janela, padding=10)
     corpo.pack(fill="both", expand=True)
+
+    # Todas as listas que abrem numa janela (viaturas, histórico, registo de
+    # alterações...) ganham a mesma barra de pesquisa, para o aspeto ser igual
+    pesquisa = PesquisaTabela(corpo)
+    pesquisa.quadro.pack(fill="x", pady=(0, 8))
     tabela = criar_tabela(corpo, colunas, 12)
+    pesquisa.associar(tabela)
+
+    linhas_completas = []
     for linha in linhas:
-        tabela.insert("", "end", values=linha)
+        linhas_completas.append((None, linha, ()))
+    pesquisa.definir_linhas(linhas_completas)
 
     ttk.Button(janela, text="Fechar", command=janela.destroy).pack(pady=(0, 10))
     return janela
