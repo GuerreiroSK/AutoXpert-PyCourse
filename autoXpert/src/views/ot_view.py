@@ -1,9 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
-from datetime import date
+from datetime import date, datetime
 
 from src.views.linha_ot_view import PainelLinhasOT
-from src.views.estilo import criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela
+from src.views.estilo import (
+    criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela, marcar_erro, preparar_campo
+)
+from src.services.validacao import validar_campos
 
 
 class JanelaOTs:
@@ -39,8 +42,9 @@ class JanelaOTs:
 
         # Linha 0: histórico por matrícula (RF07), atalhos (RF14) e nova OT
         ttk.Label(quadro, text="Matrícula:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.entrada_matricula = ttk.Entry(quadro, width=12)
+        self.entrada_matricula = tk.Entry(quadro, width=12)
         self.entrada_matricula.grid(row=0, column=1, padx=5, pady=5)
+        preparar_campo(self.entrada_matricula)
         self.entrada_matricula.bind("<Return>", self.ao_enter_matricula)
         ttk.Button(quadro, text="Histórico da viatura",
                    command=self.pesquisar_historico).grid(row=0, column=2, padx=5, pady=5)
@@ -58,16 +62,19 @@ class JanelaOTs:
         self.combo_filtro_estado.grid(row=1, column=1, padx=5, pady=5)
 
         ttk.Label(quadro, text="Técnico (id):").grid(row=1, column=2, padx=5, pady=5, sticky="e")
-        self.entrada_filtro_tecnico = ttk.Entry(quadro, width=6)
+        self.entrada_filtro_tecnico = tk.Entry(quadro, width=6)
         self.entrada_filtro_tecnico.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+        preparar_campo(self.entrada_filtro_tecnico)
 
         ttk.Label(quadro, text="De:").grid(row=1, column=4, padx=5, pady=5, sticky="e")
-        self.entrada_data_de = ttk.Entry(quadro, width=11)
+        self.entrada_data_de = tk.Entry(quadro, width=11)
         self.entrada_data_de.grid(row=1, column=5, padx=5, pady=5)
+        preparar_campo(self.entrada_data_de)
 
         ttk.Label(quadro, text="Até:").grid(row=1, column=6, padx=5, pady=5, sticky="e")
-        self.entrada_data_ate = ttk.Entry(quadro, width=11)
+        self.entrada_data_ate = tk.Entry(quadro, width=11)
         self.entrada_data_ate.grid(row=1, column=7, padx=5, pady=5)
+        preparar_campo(self.entrada_data_ate)
 
         ttk.Button(quadro, text="Filtrar",
                    command=self.pesquisar_filtros).grid(row=1, column=8, padx=5, pady=5, sticky="e")
@@ -126,16 +133,18 @@ class JanelaOTs:
 
         ttk.Label(acoes, text="Data de saída (ao entregar):").grid(
             row=0, column=2, padx=(15, 5), sticky="e")
-        self.entrada_data_saida = ttk.Entry(acoes, width=11)
+        self.entrada_data_saida = tk.Entry(acoes, width=11)
         self.entrada_data_saida.grid(row=0, column=3, padx=5)
+        preparar_campo(self.entrada_data_saida)
         self.escrever(self.entrada_data_saida, date.today().isoformat())
 
         ttk.Button(acoes, text="Mudar estado",
                    command=self.mudar_estado).grid(row=0, column=4, padx=(10, 5))
 
         ttk.Label(acoes, text="Técnico (id):").grid(row=0, column=5, padx=(30, 5), sticky="e")
-        self.entrada_tecnico = ttk.Entry(acoes, width=6)
+        self.entrada_tecnico = tk.Entry(acoes, width=6)
         self.entrada_tecnico.grid(row=0, column=6, padx=5)
+        preparar_campo(self.entrada_tecnico)
         ttk.Button(acoes, text="Atribuir técnico",
                    command=self.atribuir_tecnico).grid(row=0, column=7, padx=5)
 
@@ -215,17 +224,37 @@ class JanelaOTs:
 
     # RF07
     def pesquisar_historico(self):
-        self.mostrar_lista(self.controller.historico_por_matricula(
-            self.entrada_matricula.get()))
+        matricula = self.entrada_matricula.get().strip()
+        if not matricula:
+            mostrar_erro(self.raiz, "Validação", "Indique a matrícula da viatura.")
+            marcar_erro(self.entrada_matricula)
+            return
+        self.mostrar_lista(self.controller.historico_por_matricula(matricula))
 
     def ao_enter_matricula(self, evento):
         self.pesquisar_historico()
 
     # RF12
     def pesquisar_filtros(self):
+        erros = []
+        for rotulo, entrada in (("Data inicial", self.entrada_data_de), ("Data final", self.entrada_data_ate)):
+            valor = entrada.get().strip()
+            if valor:
+                try:
+                    datetime.strptime(valor, "%Y-%m-%d")
+                except ValueError:
+                    erros.append(rotulo + " deve estar no formato AAAA-MM-DD.")
+                    marcar_erro(entrada)
+        tecnico = self.entrada_filtro_tecnico.get().strip()
+        if tecnico and not tecnico.isdigit():
+            erros.append("O ID do técnico deve conter apenas números.")
+            marcar_erro(self.entrada_filtro_tecnico)
+        if erros:
+            mostrar_erro(self.raiz, "Erro de validação", "\n".join(erros))
+            return
         self.mostrar_lista(self.controller.pesquisar(
             self.entrada_data_de.get(), self.entrada_data_ate.get(),
-            self.combo_filtro_estado.get(), self.entrada_filtro_tecnico.get()))
+            self.combo_filtro_estado.get(), tecnico))
 
     def ao_selecionar_ot(self, evento):
         selecionadas = self.lista.selection()
@@ -285,8 +314,16 @@ class JanelaOTs:
         id_ot = self.ot_selecionada()
         if id_ot is None:
             return
+        data_saida = self.entrada_data_saida.get().strip()
+        if data_saida:
+            try:
+                datetime.strptime(data_saida, "%Y-%m-%d")
+            except ValueError:
+                marcar_erro(self.entrada_data_saida)
+                mostrar_erro(self.raiz, "Erro de validação", "A data de saída deve estar no formato AAAA-MM-DD.")
+                return
         ok, resultado = self.controller.mudar_estado(
-            id_ot, self.combo_estado.get(), self.entrada_data_saida.get())
+            id_ot, self.combo_estado.get(), data_saida)
         if not ok:
             self.mostrar_erro(resultado)
             self.carregar_detalhe(id_ot)  # volta a mostrar o estado verdadeiro
@@ -299,7 +336,12 @@ class JanelaOTs:
         id_ot = self.ot_selecionada()
         if id_ot is None:
             return
-        ok, resultado = self.controller.atribuir_tecnico(id_ot, self.entrada_tecnico.get())
+        tecnico = self.entrada_tecnico.get().strip()
+        if not tecnico.isdigit() or int(tecnico) < 1:
+            marcar_erro(self.entrada_tecnico)
+            mostrar_erro(self.raiz, "Erro de validação", "O ID do técnico deve ser um número inteiro positivo.")
+            return
+        ok, resultado = self.controller.atribuir_tecnico(id_ot, tecnico)
         if not ok:
             self.mostrar_erro(resultado)
             self.carregar_detalhe(id_ot)
@@ -340,26 +382,31 @@ class DialogoNovaOT:
         hoje = date.today().isoformat()
 
         ttk.Label(self.janela, text="ID da viatura:").grid(row=0, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_viatura = ttk.Entry(self.janela, width=10)
+        self.entrada_viatura = tk.Entry(self.janela, width=10)
         self.entrada_viatura.grid(row=0, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_viatura)
 
         ttk.Label(self.janela, text="ID do técnico:").grid(row=1, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_tecnico = ttk.Entry(self.janela, width=10)
+        self.entrada_tecnico = tk.Entry(self.janela, width=10)
         self.entrada_tecnico.grid(row=1, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_tecnico)
 
         ttk.Label(self.janela, text="Data de entrada:").grid(row=2, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_data_entrada = ttk.Entry(self.janela, width=12)
+        self.entrada_data_entrada = tk.Entry(self.janela, width=12)
         self.entrada_data_entrada.grid(row=2, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_data_entrada)
         self.entrada_data_entrada.insert(0, hoje)
 
         ttk.Label(self.janela, text="Data prevista de saída:").grid(row=3, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_data_prevista = ttk.Entry(self.janela, width=12)
+        self.entrada_data_prevista = tk.Entry(self.janela, width=12)
         self.entrada_data_prevista.grid(row=3, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_data_prevista)
         self.entrada_data_prevista.insert(0, hoje)
 
         ttk.Label(self.janela, text="Descrição da avaria:").grid(row=4, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_descricao = ttk.Entry(self.janela, width=45)
+        self.entrada_descricao = tk.Entry(self.janela, width=45)
         self.entrada_descricao.grid(row=4, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_descricao)
 
         ttk.Label(self.janela, text="Datas no formato AAAA-MM-DD").grid(
             row=5, column=1, padx=10, sticky="w")
@@ -377,6 +424,25 @@ class DialogoNovaOT:
         self.entrada_viatura.focus_set()
 
     def criar(self):
+        erros = validar_campos({
+            "ID da viatura": {"valor": self.entrada_viatura.get(), "tipo": "inteiro"},
+            "ID do técnico": {"valor": self.entrada_tecnico.get(), "tipo": "inteiro"},
+            "Data de entrada": self.entrada_data_entrada.get(),
+            "Data prevista de saída": self.entrada_data_prevista.get(),
+            "Descrição da avaria": self.entrada_descricao.get(),
+        })
+        for rotulo, entrada in (("Data de entrada", self.entrada_data_entrada), ("Data prevista de saída", self.entrada_data_prevista)):
+            try:
+                datetime.strptime(entrada.get().strip(), "%Y-%m-%d")
+            except ValueError:
+                erros.append(rotulo + " deve estar no formato AAAA-MM-DD.")
+                marcar_erro(entrada)
+        if erros:
+            for entrada in (self.entrada_viatura, self.entrada_tecnico, self.entrada_descricao):
+                if not entrada.get().strip():
+                    marcar_erro(entrada)
+            mostrar_erro(self.janela, "Erro de validação", "\n".join(erros))
+            return
         ok, resultado = self.controller.criar_ot(
             self.entrada_viatura.get(), self.entrada_tecnico.get(),
             self.entrada_data_entrada.get(), self.entrada_data_prevista.get(),

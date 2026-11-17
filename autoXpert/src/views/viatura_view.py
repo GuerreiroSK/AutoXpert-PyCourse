@@ -1,9 +1,22 @@
 from tkinter import ttk
 
 from src.views.estilo import (
-    criar_janela, criar_cabecalho, texto, pedir_dados, pedir_texto, pedir_inteiro,
+    criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
+    texto, pedir_dados, pedir_texto, pedir_inteiro,
     mostrar_erro, mostrar_info, perguntar_sim_nao, mostrar_tabela, mostrar_detalhe
 )
+
+# Colunas da lista de viaturas: (nome, título, largura, alinhamento)
+COLUNAS = [
+    ("id", "ID", 50, "center"),
+    ("matricula", "Matrícula", 100, "center"),
+    ("marca", "Marca", 130, "w"),
+    ("modelo", "Modelo", 140, "w"),
+    ("ano", "Ano", 60, "center"),
+    ("cor", "Cor", 100, "center"),
+    ("km", "KM", 90, "e"),
+    ("cliente", "Cliente", 220, "w"),
+]
 
 
 class ViaturaView:
@@ -17,6 +30,9 @@ class ViaturaView:
         self.root = root
         self.obter_clientes = obter_clientes
         self.janela = None
+        self.controller = None
+        self.tabela = None
+        self.pesquisa = None
 
     # Janela por cima da qual os diálogos abrem (o menu, se estiver aberto)
     def pai(self):
@@ -24,30 +40,111 @@ class ViaturaView:
             return self.janela
         return self.root
 
+    # Ao abrir "Gestão de viaturas" aparece logo a lista de viaturas, com os botões
+    # das ações em cima (igual à janela dos clientes). Porquê: o utilizador vê os dados
+    # logo ao entrar e escolhe a viatura na lista, em vez de passar por um submenu e
+    # escrever IDs ou matrículas à mão.
     def menu_viatura(self, controller):
         if self.janela is not None and self.janela.winfo_exists():
             self.janela.lift()
             return
 
-        self.janela = criar_janela(self.root, "AutoXpert - Viaturas", 380, 500)
+        self.controller = controller
+        self.janela = criar_janela(self.root, "AutoXpert - Viaturas", 1020, 520)
         criar_cabecalho(self.janela, "Gestão de Viaturas")
 
-        corpo = ttk.Frame(self.janela, padding=(30, 15))
+        barra_botoes = ttk.Frame(self.janela, padding=(10, 10, 10, 0))
+        barra_botoes.pack(fill="x")
+        ttk.Button(barra_botoes, text="Registar viatura",
+                   command=self.registar).pack(side="left", padx=(0, 5))
+        ttk.Button(barra_botoes, text="Consultar",
+                   command=self.consultar).pack(side="left", padx=5)
+        ttk.Button(barra_botoes, text="Editar",
+                   command=self.atualizar).pack(side="left", padx=5)
+        ttk.Button(barra_botoes, text="Eliminar",
+                   command=self.eliminar).pack(side="left", padx=5)
+        ttk.Button(barra_botoes, text="Histórico",
+                   command=self.historico).pack(side="left", padx=5)
+        ttk.Button(barra_botoes, text="Atualizar lista",
+                   command=self.listar).pack(side="left", padx=5)
+        ttk.Button(barra_botoes, text="Fechar",
+                   command=self.janela.destroy).pack(side="right")
+
+        self.barra = criar_barra_estado(self.janela)
+
+        corpo = ttk.Frame(self.janela, padding=10)
         corpo.pack(fill="both", expand=True)
+        self.pesquisa = PesquisaTabela(corpo, self.mostrar_contagem)
+        self.pesquisa.quadro.pack(fill="x", pady=(0, 8))
+        self.tabela = criar_tabela(corpo, COLUNAS, 12)
+        self.pesquisa.associar(self.tabela)
 
-        botoes = [
-            ("Registar viatura", controller.registar_viatura),
-            ("Consultar viatura", controller.consultar_viatura),
-            ("Listar viaturas", controller.listar_viaturas),
-            ("Atualizar viatura", controller.atualizar_viatura),
-            ("Eliminar viatura", controller.eliminar_viatura),
-            ("Consultar histórico", controller.consultar_historico),
-        ]
-        for texto_botao, comando in botoes:
-            ttk.Button(corpo, text=texto_botao, style="Menu.TButton",
-                       command=comando).pack(fill="x", pady=4)
+        self.listar()
 
-        ttk.Button(corpo, text="Fechar", command=self.janela.destroy).pack(pady=(12, 0))
+    # ================= Botões =================
+    # Cada botão chama o controller (que tem as regras e os avisos) e depois volta a
+    # carregar a lista, para mostrar logo o resultado (viatura nova, editada, eliminada...)
+
+    def registar(self):
+        self.controller.registar_viatura()
+        self.listar()
+
+    def consultar(self):
+        self.controller.consultar_viatura()
+
+    def atualizar(self):
+        self.controller.atualizar_viatura()
+        self.listar()
+
+    def eliminar(self):
+        self.controller.eliminar_viatura()
+        self.listar()
+
+    def historico(self):
+        self.controller.consultar_historico()
+
+    # ================= Lista =================
+
+    def listar(self):
+        viaturas = self.controller.obter_viaturas()
+        nomes = self.nomes_dos_clientes()
+        linhas = []
+        for v in viaturas:
+            cliente = nomes.get(v.id_cliente, "")
+            if cliente == "":
+                cliente = str(v.id_cliente)
+            else:
+                cliente = cliente + " (" + str(v.id_cliente) + ")"
+            valores = (v.id_viatura, v.matricula, v.marca, v.modelo, texto(v.ano),
+                       texto(v.cor), v.km_entrada, cliente)
+            linhas.append((str(v.id_viatura), valores, ()))
+        self.pesquisa.definir_linhas(linhas)
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if total == 0:
+            self.barra.set("Não existem viaturas registadas.")
+        elif self.pesquisa.pesquisa_ativa():
+            self.barra.set(str(visiveis) + " de " + str(total) + " viatura(s)")
+        else:
+            self.barra.set(str(total) + " viatura(s)")
+
+    # id do cliente -> nome, para a lista mostrar o nome do dono e não só o número
+    def nomes_dos_clientes(self):
+        nomes = {}
+        if self.obter_clientes is not None:
+            for cliente in self.obter_clientes():
+                nomes[cliente.id_cliente] = cliente.nome
+        return nomes
+
+    # Linha escolhida na lista, ou None se não houver nenhuma (ou a janela estiver fechada)
+    def viatura_selecionada(self):
+        if self.janela is None or not self.janela.winfo_exists():
+            return None
+        escolhidas = self.tabela.selection()
+        if len(escolhidas) == 0:
+            return None
+        return self.tabela.item(escolhidas[0], "values")
 
     # ================= Pedidos ao utilizador =================
 
@@ -79,7 +176,7 @@ class ViaturaView:
             campos.append(("id_cliente", "ID do cliente"))
 
         dados = pedir_dados(self.pai(), "Registar viatura", campos, None, "Registar",
-                            self.validar_registo)
+                            self.validar_registo, self.obrigatorios_viatura())
         if dados is None:
             return None
 
@@ -93,10 +190,18 @@ class ViaturaView:
         resultado["id_cliente"] = int(dados["id_cliente"].split(" - ")[0])
         return resultado
 
+    # Se há uma viatura escolhida na lista usa-a; se não, pergunta. Assim funciona das
+    # duas maneiras: escolher na lista e clicar, ou clicar e escrever a matrícula.
     def pedir_matricula(self):
+        escolhida = self.viatura_selecionada()
+        if escolhida is not None:
+            return escolhida[1]
         return pedir_texto(self.pai(), "Consultar viatura", "Matrícula")
 
     def pedir_id_viatura(self):
+        escolhida = self.viatura_selecionada()
+        if escolhida is not None:
+            return int(escolhida[0])
         return pedir_inteiro(self.pai(), "Viatura", "ID da viatura")
 
     def pedir_dados_atualizacao(self, viatura):
@@ -113,7 +218,8 @@ class ViaturaView:
                    "km_entrada": viatura.km_entrada}
 
         dados = pedir_dados(self.pai(), "Atualizar viatura " + str(viatura.id_viatura),
-                            campos, valores, "Guardar", self.validar_registo)
+                            campos, valores, "Guardar", self.validar_registo,
+                            self.obrigatorios_viatura())
         if dados is None:
             return None
 
@@ -202,13 +308,12 @@ class ViaturaView:
             return None
         return int(valor)
 
+    # Campos que não podem ficar vazios (o formulário avisa de todos de uma vez)
+    def obrigatorios_viatura(self):
+        return ["matricula", "marca", "modelo"]
+
     def validar_registo(self, dados):
-        if dados["matricula"] == "":
-            return "A matrícula é obrigatória."
-        if dados["marca"] == "":
-            return "A marca é obrigatória."
-        if dados["modelo"] == "":
-            return "O modelo é obrigatório."
+        # matrícula, marca e modelo obrigatórios: já verificados pelo formulário
         if dados["ano"] != "" and not dados["ano"].isdigit():
             return "O ano tem de ser um número inteiro."
         if dados["km_entrada"] != "" and not dados["km_entrada"].isdigit():

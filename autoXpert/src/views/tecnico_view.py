@@ -1,7 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
 
-from src.views.estilo import executar_acao, perguntar_sim_nao, PesquisaTabela
+from src.views.estilo import (
+    executar_acao, perguntar_sim_nao, PesquisaTabela, marcar_erro, preparar_campo
+)
+from src.services.validacao import validar_campos
 
 
 class TecnicoView(ttk.Frame):
@@ -37,10 +40,13 @@ class TecnicoView(ttk.Frame):
         rotulos = [("nome", "Nome *"), ("especialidade", "Especialidade"),
                    ("custo_hora", "Custo/hora (€) *")]
         linha = 0
+        self.entradas = {}
         for chave, rotulo in rotulos:
             ttk.Label(self, text=rotulo).grid(row=linha, column=0, sticky="w", pady=3)
-            ttk.Entry(self, textvariable=self.campos[chave]).grid(
-                row=linha, column=1, sticky="ew", padx=8)
+            entrada = tk.Entry(self, textvariable=self.campos[chave])
+            entrada.grid(row=linha, column=1, sticky="ew", padx=8)
+            preparar_campo(entrada)
+            self.entradas[chave] = entrada
             linha += 1
         ttk.Checkbutton(self, text="Ativo", variable=self.ativo).grid(
             row=3, column=1, sticky="w")
@@ -155,9 +161,26 @@ class TecnicoView(ttk.Frame):
         self.estado.set("A editar o técnico " + str(tecnico.id_tecnico) + ".")
 
     def guardar(self):
-        dados = {}
-        for chave in self.campos:
-            dados[chave] = self.campos[chave].get()
+        dados = {chave: self.campos[chave].get().strip() for chave in self.campos}
+        erros = validar_campos({
+            "Nome": dados["nome"],
+            "Custo/hora": {"valor": dados["custo_hora"], "tipo": "decimal"},
+        })
+        try:
+            if float(dados["custo_hora"].replace(",", ".")) < 0:
+                erros.append("Custo/hora não pode ser negativo.")
+        except ValueError:
+            pass   # já foi apanhado pelo validar_campos
+        if len(erros) > 0:
+            # Pinta o campo de cada erro (a mensagem começa pelo nome do campo)
+            for erro in erros:
+                if erro.startswith("Nome "):
+                    marcar_erro(self.entradas["nome"])
+                if erro.startswith("Custo/hora "):
+                    marcar_erro(self.entradas["custo_hora"])
+            # ValueError em vez de messagebox aqui: o executar_acao mostra o aviso
+            # (igual aos outros erros) e os testes que chamam guardar() não bloqueiam
+            raise ValueError("\n".join(erros))
         tecnico = self.controller.guardar(dados, self.ativo.get(), self.id_selecionado)
         self.carregar()
         self.estado.set("Técnico " + str(tecnico.id_tecnico) + " guardado.")
