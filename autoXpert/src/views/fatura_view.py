@@ -1,6 +1,10 @@
 import sqlite3
+import csv
+import tkinter as tk
+from pathlib import Path
 from datetime import date, datetime
-from tkinter import ttk
+from tkinter import ttk, messagebox
+
 
 from src.services.validacao import validar_campos
 
@@ -37,7 +41,7 @@ class FaturaView:
             self.janela.lift()
             return
 
-        self.janela = criar_janela(self.raiz, "AutoXpert - Faturação", 860, 480)
+        self.janela = criar_janela(self.raiz, "AutoXpert - Faturação", 1300, 650)
         criar_cabecalho(self.janela, "Faturação")
 
         barra_botoes = ttk.Frame(self.janela, padding=(10, 10, 10, 0))
@@ -48,10 +52,16 @@ class FaturaView:
                    command=self.adicionar_fatura).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Marcar como paga",
                    command=self.marcar_paga).pack(side="left", padx=5)
+        # Abre a janela com os dados completos da fatura selecionada.
+        ttk.Button(barra_botoes, text="Ver detalhe",
+                   command=self.ver_detalhe).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Eliminar",
                    command=self.eliminar_fatura).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Relatório mensal (Excel)",
                    command=self.exportar_relatorio).pack(side="left", padx=5)
+        # Botão para exportar as faturas apresentadas na tabela.
+        ttk.Button(barra_botoes, text="Exportar CSV",
+                   command=self.exportar_csv).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Fechar",
                    command=self.janela.destroy).pack(side="right")
 
@@ -203,6 +213,41 @@ class FaturaView:
                      "Ficheiro criado em:\n" + str(caminho))
         self.barra.set("Relatório exportado.")
 
+    # Exporta para CSV as faturas apresentadas na tabela.
+    def exportar_csv(self):
+        # Define a pasta docs na raiz do projeto.
+        pasta_docs = Path(__file__).resolve().parents[2] / "docs"
+        pasta_docs.mkdir(parents=True, exist_ok=True)
+
+        # Cria um nome com data e hora para evitar substituir ficheiros.
+        data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+        caminho = pasta_docs / f"faturacao_{data_hora}.csv"
+
+        # Obtém os cabeçalhos das colunas da tabela.
+        cabecalho = [coluna[1] for coluna in COLUNAS]
+
+        try:
+            # Escreve os cabeçalhos e os dados da tabela no ficheiro.
+            with open(caminho, "w", newline="", encoding="utf-8-sig") as ficheiro:
+                escritor = csv.writer(ficheiro, delimiter=";")
+                escritor.writerow(cabecalho)
+
+                for item in self.tabela.get_children():
+                    valores = self.tabela.item(item, "values")
+                    escritor.writerow(valores)
+
+        except OSError as erro:
+            messagebox.showerror("Erro", str(erro), parent=self.janela)
+            return
+
+        # Informa o utilizador de que a exportação foi concluída.
+        messagebox.showinfo(
+            "Exportação concluída",
+            f"Ficheiro CSV criado em:\n{caminho}",
+            parent=self.janela
+        )
+        self.barra.set("Faturação exportada para CSV.")
+
     # ================= Auxiliares =================
 
     def fatura_selecionada(self):
@@ -246,3 +291,156 @@ class FaturaView:
         if dados["ano"].isdigit() and len(dados["ano"]) != 4:
             erros.append("O ano tem de ter 4 dígitos (ex.: 2026).")
         return "\n".join(erros) if erros else None
+
+    # Cria um campo de informação com o respetivo título e valor.
+    def criar_campo_detalhe(self, quadro, titulo, valor, linha, coluna):
+        ttk.Label(
+            quadro,
+            text=titulo + ":",
+            font=("TkDefaultFont", 9, "bold")
+        ).grid(row=linha, column=coluna, padx=8, pady=5, sticky="e")
+
+        ttk.Label(
+            quadro,
+            text=str(valor) if valor is not None else "-",
+            wraplength=300
+        ).grid(row=linha, column=coluna + 1, padx=8, pady=5, sticky="w")
+
+    # Abre uma janela com os dados completos da fatura selecionada.
+    def ver_detalhe(self):
+        id_fatura = self.fatura_selecionada()
+
+        if id_fatura is None:
+            return
+
+        # Obtém a fatura, as linhas da OT e os totais calculados.
+        try:
+            detalhe = self.controller.consultar_detalhe(id_fatura)
+        except (ValueError, sqlite3.Error) as erro:
+            mostrar_erro(self.janela, "Erro", texto_do_erro(erro))
+            return
+
+        fatura = detalhe["fatura"]
+        linhas = detalhe["linhas"]
+
+        # Cria a janela secundária.
+        janela = tk.Toplevel(self.janela)
+        janela.title("Detalhe da Fatura " + str(fatura.id_fatura))
+        janela.geometry("850x650")
+        janela.transient(self.janela)
+        janela.protocol("WM_DELETE_WINDOW", janela.destroy)
+
+        # Apresenta a identificação e os dados principais da fatura.
+        quadro_fatura = ttk.LabelFrame(janela, text="Dados da Fatura")
+        quadro_fatura.pack(fill="x", padx=10, pady=8)
+
+        self.criar_campo_detalhe(
+            quadro_fatura, "N.º Fatura", fatura.id_fatura, 0, 0
+        )
+        self.criar_campo_detalhe(
+            quadro_fatura, "Ordem de Trabalho", fatura.id_ot, 0, 2
+        )
+        self.criar_campo_detalhe(
+            quadro_fatura, "Data de emissão", fatura.data_emissao, 1, 0
+        )
+
+        # Apresenta os serviços e as peças associados à OT.
+        quadro_linhas = ttk.LabelFrame(janela, text="Serviços e Peças")
+        quadro_linhas.pack(fill="both", expand=True, padx=10, pady=5)
+
+        colunas = (
+            "tipo", "descricao", "quantidade", "horas",
+            "preco", "subtotal"
+        )
+
+        tabela = ttk.Treeview(
+            quadro_linhas,
+            columns=colunas,
+            show="headings",
+            height=8
+        )
+
+        titulos = [
+            ("tipo", "Tipo", 100),
+            ("descricao", "Descrição", 260),
+            ("quantidade", "Quantidade", 85),
+            ("horas", "Horas", 75),
+            ("preco", "Preço unit. (€)", 110),
+            ("subtotal", "Subtotal (€)", 110)
+        ]
+
+        for coluna, titulo, largura in titulos:
+            tabela.heading(coluna, text=titulo)
+            tabela.column(coluna, width=largura, anchor="center")
+
+        tabela.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Insere as linhas da OT na tabela.
+        for linha in linhas:
+            if linha["tipo"] == "mao_obra":
+                tipo = "Mão-de-obra"
+            elif linha["tipo"] == "peca":
+                tipo = "Peça"
+            else:
+                tipo = linha["tipo"]
+
+            tabela.insert("", "end", values=(
+                tipo,
+                linha["descricao"],
+                linha["quantidade"],
+                texto(linha["horas_trabalhadas"]),
+                round(linha["preco_unitario"], 2),
+                round(linha["subtotal"], 2)
+            ))
+
+        if len(linhas) == 0:
+            tabela.insert(
+                "", "end",
+                values=("", "Sem serviços ou peças registados", "", "", "", "")
+            )
+
+        # Apresenta os totais calculados e o valor registado na fatura.
+        quadro_totais = ttk.LabelFrame(janela, text="Totais")
+        quadro_totais.pack(fill="x", padx=10, pady=5)
+
+        self.criar_campo_detalhe(
+            quadro_totais, "Total mão-de-obra",
+            str(detalhe["total_mao_obra"]) + " €", 0, 0
+        )
+        self.criar_campo_detalhe(
+            quadro_totais, "Total peças",
+            str(detalhe["total_pecas"]) + " €", 0, 2
+        )
+        self.criar_campo_detalhe(
+            quadro_totais, "Valor total da fatura",
+            str(round(fatura.valor_total, 2)) + " €", 1, 0
+        )
+
+        # Apresenta o estado e os dados do pagamento.
+        quadro_pagamento = ttk.LabelFrame(janela, text="Pagamento")
+        quadro_pagamento.pack(fill="x", padx=10, pady=5)
+
+        if fatura.pago:
+            estado_pagamento = "Paga"
+        else:
+            estado_pagamento = "Por pagar"
+
+        self.criar_campo_detalhe(
+            quadro_pagamento, "Estado", estado_pagamento, 0, 0
+        )
+        self.criar_campo_detalhe(
+            quadro_pagamento, "Data de pagamento",
+            texto(fatura.data_pagamento), 0, 2
+        )
+        self.criar_campo_detalhe(
+            quadro_pagamento, "Método de pagamento",
+            texto(fatura.metodo_pagamento), 1, 0
+        )
+
+        # Botão para fechar a janela de detalhe.
+        ttk.Button(
+            janela,
+            text="Fechar",
+            command=janela.destroy
+        ).pack(pady=10)
+

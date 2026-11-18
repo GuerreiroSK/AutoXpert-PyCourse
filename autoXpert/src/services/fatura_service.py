@@ -61,6 +61,47 @@ class FaturaService:
 
         return fatura
 
+    # Obtém os dados da fatura e calcula os totais de mão-de-obra e peças.
+    def obter_detalhe(self, id_fatura):
+        fatura = self.obter_por_id(id_fatura)
+        linhas = self.repository.obter_linhas_ot(fatura.id_ot)
+
+        total_mao_obra = 0
+        total_pecas = 0
+        linhas_detalhe = []
+
+        # Calcula o subtotal de cada linha e separa os valores por categoria.
+        for linha in linhas:
+            linha_detalhe = dict(linha)
+
+            if linha["tipo"] == "mao_obra":
+                subtotal = (
+                    (linha["horas_trabalhadas"] or 0)
+                    * linha["preco_unitario"]
+                )
+                total_mao_obra += subtotal
+
+            elif linha["tipo"] == "peca":
+                subtotal = (
+                    linha["quantidade"]
+                    * linha["preco_unitario"]
+                )
+                total_pecas += subtotal
+
+            else:
+                subtotal = 0
+
+            linha_detalhe["subtotal"] = round(subtotal, 2)
+            linhas_detalhe.append(linha_detalhe)
+
+        # Devolve a fatura, as linhas e os totais calculados.
+        return {
+            "fatura": fatura,
+            "linhas": linhas_detalhe,
+            "total_mao_obra": round(total_mao_obra, 2),
+            "total_pecas": round(total_pecas, 2)
+        }
+
     # UPDATE - Atualizar fatura
     def atualizar(self, fatura):
 

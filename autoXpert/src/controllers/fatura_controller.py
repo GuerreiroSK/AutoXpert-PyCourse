@@ -23,6 +23,10 @@ class FaturaController:
     def consultar_fatura(self, id_fatura):
         return self.service.obter_por_id(id_fatura)
 
+    # READ - Consultar todos os dados de uma fatura para a janela de detalhe.
+    def consultar_detalhe(self, id_fatura):
+        return self.service.obter_detalhe(id_fatura)
+
     # UPDATE - Atualizar fatura
     def atualizar_fatura(self, fatura):
         return self.service.atualizar(fatura)

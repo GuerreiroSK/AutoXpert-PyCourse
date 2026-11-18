@@ -1,6 +1,9 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from datetime import date, datetime
+import csv
+from pathlib import Path
+
 
 from src.views.linha_ot_view import PainelLinhasOT
 from src.views.estilo import (
@@ -52,6 +55,9 @@ class JanelaOTs:
                    command=self.mostrar_em_curso).grid(row=0, column=3, padx=5, pady=5)
         ttk.Button(quadro, text="Todas",
                    command=self.mostrar_todas).grid(row=0, column=4, padx=5, pady=5)
+        # Botão para exportar as Ordens de Trabalho apresentadas na tabela.
+        ttk.Button(quadro, text="Exportar CSV",
+                   command=self.exportar_csv).grid(row=0, column=7, padx=5, pady=5)
         ttk.Button(quadro, text="Nova OT",
                    command=self.abrir_nova_ot).grid(row=0, column=8, padx=5, pady=5, sticky="e")
 
@@ -148,6 +154,10 @@ class JanelaOTs:
         ttk.Button(acoes, text="Atribuir técnico",
                    command=self.atribuir_tecnico).grid(row=0, column=7, padx=5)
 
+        # Abre uma janela com todos os dados da OT selecionada.
+        ttk.Button(acoes, text="Ver Detalhe",
+                   command=self.abrir_detalhe_ot).grid(row=0, column=8, padx=10)
+
         # Linhas da OT (RF04): painel próprio, definido em linha_ot_view.py
         self.painel_linhas = PainelLinhasOT(quadro, self.controller_linhas,
                                             self.ao_mudar_linhas)
@@ -193,6 +203,44 @@ class JanelaOTs:
             mostrar_info(self.raiz, "Atenção", "Selecione primeiro uma OT na lista.")
             return None
         return self.id_ot_atual
+
+    # Exporta para CSV as Ordens de Trabalho apresentadas na tabela.
+    def exportar_csv(self):
+        # Define a pasta docs na raiz do projeto.
+        pasta_docs = Path(__file__).resolve().parents[2] / "docs"
+        pasta_docs.mkdir(parents=True, exist_ok=True)
+
+        # Cria um nome com data e hora para evitar substituir ficheiros.
+        data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+        caminho = pasta_docs / f"ordens_trabalho_{data_hora}.csv"
+
+        # Define os cabeçalhos do ficheiro CSV.
+        cabecalho = [
+            "OT", "Viatura", "Técnico", "Entrada",
+            "Saída prevista", "Saída real", "Estado", "Custo (€)"
+        ]
+
+        try:
+            # Escreve os cabeçalhos e os dados da tabela no ficheiro.
+            with open(caminho, "w", newline="", encoding="utf-8-sig") as ficheiro:
+                escritor = csv.writer(ficheiro, delimiter=";")
+                escritor.writerow(cabecalho)
+
+                for item in self.lista.get_children():
+                    valores = self.lista.item(item, "values")
+                    escritor.writerow(valores)
+
+        except OSError as erro:
+            messagebox.showerror("Erro", str(erro), parent=self.raiz)
+            return
+
+        # Informa o utilizador de que a exportação foi concluída.
+        messagebox.showinfo(
+            "Exportação concluída",
+            f"Ficheiro CSV criado em:\n{caminho}",
+            parent=self.raiz
+        )
+        self.dizer("Ordens de Trabalho exportadas para CSV.")
 
     # ================= Lista de OTs =================
 
@@ -349,6 +397,154 @@ class JanelaOTs:
         self.carregar_detalhe(id_ot)
         self.dizer("Técnico da OT " + str(id_ot) + " alterado para " + str(resultado.id_tecnico))
 
+    # Cria uma linha com o nome do campo e o respetivo valor.
+    def criar_campo_detalhe(self, quadro, titulo, valor, linha, coluna):
+        ttk.Label(quadro, text=titulo + ":", font=("TkDefaultFont", 9, "bold")).grid(
+            row=linha, column=coluna, padx=8, pady=5, sticky="e"
+        )
+
+        ttk.Label(quadro, text=str(valor) if valor is not None else "-",
+                  wraplength=350, justify="left").grid(
+            row=linha, column=coluna + 1, padx=8, pady=5, sticky="w"
+        )
+
+    # Abre uma janela com os dados completos da OT selecionada.
+    def abrir_detalhe_ot(self):
+        id_ot = self.ot_selecionada()
+
+        if id_ot is None:
+            return
+
+        # Obtém os dados da OT através do controller.
+        ok, detalhe = self.controller.obter_detalhe_ot(id_ot)
+
+        if not ok:
+            self.mostrar_erro(detalhe)
+            return
+
+        # Obtém as linhas associadas à OT.
+        ok, linhas = self.controller_linhas.listar_linhas(id_ot)
+
+        if not ok:
+            self.mostrar_erro(linhas)
+            return
+
+        # Cria a janela secundária.
+        janela = tk.Toplevel(self.raiz)
+        janela.title("Detalhe da Ordem de Trabalho " + str(id_ot))
+        janela.geometry("850x700")
+        janela.transient(self.raiz)
+        janela.protocol("WM_DELETE_WINDOW", janela.destroy)
+
+        # Dados gerais da Ordem de Trabalho.
+        quadro_ot = ttk.LabelFrame(janela, text="Ordem de Trabalho")
+        quadro_ot.pack(fill="x", padx=10, pady=8)
+
+        self.criar_campo_detalhe(quadro_ot, "N.º OT", detalhe["id_ot"], 0, 0)
+        self.criar_campo_detalhe(quadro_ot, "Estado", detalhe["estado"], 0, 2)
+        self.criar_campo_detalhe(quadro_ot, "Data de entrada", detalhe["data_entrada"], 1, 0)
+        self.criar_campo_detalhe(quadro_ot, "Saída prevista", detalhe["data_prev_saida"], 1, 2)
+        self.criar_campo_detalhe(quadro_ot, "Saída real", detalhe["data_saida_real"], 2, 0)
+        self.criar_campo_detalhe(
+            quadro_ot, "Custo total", str(round(detalhe["custo_total"], 2)) + " €", 2, 2
+        )
+
+        # Informação do cliente associado à viatura.
+        quadro_cliente = ttk.LabelFrame(janela, text="Cliente")
+        quadro_cliente.pack(fill="x", padx=10, pady=5)
+
+        self.criar_campo_detalhe(quadro_cliente, "ID", detalhe["id_cliente"], 0, 0)
+        self.criar_campo_detalhe(quadro_cliente, "Nome", detalhe["nome_cliente"], 0, 2)
+        self.criar_campo_detalhe(quadro_cliente, "NIF", detalhe["nif_cliente"], 1, 0)
+        self.criar_campo_detalhe(quadro_cliente, "Telefone", detalhe["telefone_cliente"], 1, 2)
+        self.criar_campo_detalhe(quadro_cliente, "Email", detalhe["email_cliente"], 2, 0)
+        self.criar_campo_detalhe(quadro_cliente, "Morada", detalhe["morada_cliente"], 2, 2)
+
+        # Informação da viatura associada à OT.
+        quadro_viatura = ttk.LabelFrame(janela, text="Viatura")
+        quadro_viatura.pack(fill="x", padx=10, pady=5)
+
+        self.criar_campo_detalhe(quadro_viatura, "ID", detalhe["id_viatura"], 0, 0)
+        self.criar_campo_detalhe(quadro_viatura, "Matrícula", detalhe["matricula"], 0, 2)
+        self.criar_campo_detalhe(quadro_viatura, "Marca", detalhe["marca"], 1, 0)
+        self.criar_campo_detalhe(quadro_viatura, "Modelo", detalhe["modelo"], 1, 2)
+        self.criar_campo_detalhe(quadro_viatura, "Ano", detalhe["ano"], 2, 0)
+        self.criar_campo_detalhe(quadro_viatura, "Cor", detalhe["cor"], 2, 2)
+        self.criar_campo_detalhe(quadro_viatura, "KM à entrada", detalhe["km_entrada"], 3, 0)
+
+        # Informação do técnico responsável pela OT.
+        quadro_tecnico = ttk.LabelFrame(janela, text="Técnico")
+        quadro_tecnico.pack(fill="x", padx=10, pady=5)
+
+        nome_tecnico = detalhe["nome_tecnico"] or "Não atribuído"
+        especialidade = detalhe["especialidade"] or "-"
+        custo_hora = detalhe["custo_hora"]
+
+        self.criar_campo_detalhe(quadro_tecnico, "ID", detalhe["id_tecnico"], 0, 0)
+        self.criar_campo_detalhe(quadro_tecnico, "Nome", nome_tecnico, 0, 2)
+        self.criar_campo_detalhe(quadro_tecnico, "Especialidade", especialidade, 1, 0)
+        self.criar_campo_detalhe(
+            quadro_tecnico, "Custo por hora",
+            str(custo_hora) + " €" if custo_hora is not None else "-", 1, 2
+        )
+
+        # Apresenta a descrição da avaria.
+        quadro_avaria = ttk.LabelFrame(janela, text="Descrição da Avaria")
+        quadro_avaria.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(
+            quadro_avaria,
+            text=detalhe["descricao_avaria"] or "-",
+            wraplength=800,
+            justify="left"
+        ).pack(anchor="w", padx=8, pady=8)
+
+        # Apresenta as peças e os serviços registados na OT.
+        quadro_linhas = ttk.LabelFrame(janela, text="Peças e Serviços")
+        quadro_linhas.pack(fill="both", expand=True, padx=10, pady=5)
+
+        colunas = ("id", "tipo", "descricao", "quantidade", "horas", "preco", "peca", "subtotal")
+
+        tabela = ttk.Treeview(
+            quadro_linhas, columns=colunas, show="headings", height=6
+        )
+
+        titulos = [
+            ("id", "Linha", 55),
+            ("tipo", "Tipo", 80),
+            ("descricao", "Descrição", 220),
+            ("quantidade", "Qtd.", 55),
+            ("horas", "Horas", 65),
+            ("preco", "Preço unit.", 90),
+            ("peca", "ID Peça", 70),
+            ("subtotal", "Subtotal", 90)
+        ]
+
+        for coluna, titulo, largura in titulos:
+            tabela.heading(coluna, text=titulo)
+            tabela.column(coluna, width=largura, anchor="center")
+
+        tabela.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Insere cada linha da OT na tabela de detalhe.
+        for linha in linhas:
+            tabela.insert("", "end", values=(
+                linha.id_linha,
+                linha.tipo,
+                linha.descricao,
+                linha.quantidade,
+                self.texto(linha.horas_trabalhadas),
+                str(linha.preco_unitario) + " €",
+                self.texto(linha.id_peca),
+                str(round(linha.subtotal(), 2)) + " €"
+            ))
+
+        if len(linhas) == 0:
+            tabela.insert("", "end", values=("", "", "Sem peças ou serviços registados", "", "", "", "", ""))
+
+        # Botão para fechar a janela de detalhe.
+        ttk.Button(janela, text="Fechar", command=janela.destroy).pack(pady=10)
+
     # ================= Nova OT =================
 
     def abrir_nova_ot(self):
@@ -378,6 +574,7 @@ class DialogoNovaOT:
         self.janela.transient(janela_pai)
         self.janela.wait_visibility()  # no Linux, o grab só funciona com a janela já visível
         self.janela.grab_set()  # enquanto está aberta, só se mexe nesta janela
+        self.janela.protocol("WM_DELETE_WINDOW", self.janela.destroy)
 
         hoje = date.today().isoformat()
 
