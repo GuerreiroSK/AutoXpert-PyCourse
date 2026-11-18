@@ -79,7 +79,7 @@ class ViaturaView:
             campos.append(("id_cliente", "ID do cliente"))
 
         dados = pedir_dados(self.pai(), "Registar viatura", campos, None, "Registar",
-                            self.validar_registo)
+                            self.validar_registo, self.obrigatorios_viatura())
         if dados is None:
             return None
 
@@ -113,7 +113,8 @@ class ViaturaView:
                    "km_entrada": viatura.km_entrada}
 
         dados = pedir_dados(self.pai(), "Atualizar viatura " + str(viatura.id_viatura),
-                            campos, valores, "Guardar", self.validar_registo)
+                            campos, valores, "Guardar", self.validar_registo,
+                            self.obrigatorios_viatura())
         if dados is None:
             return None
 
@@ -164,7 +165,7 @@ class ViaturaView:
         for v in viaturas:
             linhas.append((v.id_viatura, v.matricula, v.marca, v.modelo, texto(v.ano),
                            texto(v.cor), v.km_entrada, v.id_cliente))
-        mostrar_tabela(self.pai(), "Lista de viaturas", colunas, linhas, 780, 480)
+        mostrar_tabela(self.pai(), "Lista de viaturas", colunas, linhas, 780, 440)
 
     def mostrar_historico(self, historico):
         if not historico:
@@ -186,7 +187,7 @@ class ViaturaView:
             linhas.append((ot.id_ot, ot.data_entrada, ot.data_prev_saida,
                            texto(ot.data_saida_real), ot.estado,
                            ot.descricao_avaria, ot.custo_total))
-        mostrar_tabela(self.pai(), "Histórico da viatura", colunas, linhas, 860, 480)
+        mostrar_tabela(self.pai(), "Histórico da viatura", colunas, linhas, 860, 440)
 
     # O controller chama estes dois com (título, mensagem)
     def mostrar_mensagem(self, titulo, mensagem):
@@ -202,13 +203,12 @@ class ViaturaView:
             return None
         return int(valor)
 
+    # Campos que não podem ficar vazios (o formulário avisa de todos de uma vez)
+    def obrigatorios_viatura(self):
+        return ["matricula", "marca", "modelo"]
+
     def validar_registo(self, dados):
-        if dados["matricula"] == "":
-            return "A matrícula é obrigatória."
-        if dados["marca"] == "":
-            return "A marca é obrigatória."
-        if dados["modelo"] == "":
-            return "O modelo é obrigatório."
+        # matrícula, marca e modelo obrigatórios: já verificados pelo formulário
         if dados["ano"] != "" and not dados["ano"].isdigit():
             return "O ano tem de ser um número inteiro."
         if dados["km_entrada"] != "" and not dados["km_entrada"].isdigit():

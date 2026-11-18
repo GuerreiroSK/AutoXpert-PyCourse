@@ -1,6 +1,8 @@
 import sqlite3
 from tkinter import ttk
 
+from src.services.validacao import validar_numero_telefone
+
 from src.views.estilo import (
     criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
     texto, pedir_dados, mostrar_erro, perguntar_sim_nao, texto_do_erro
@@ -94,7 +96,7 @@ class ClienteView:
 
     def adicionar_cliente(self):
         dados = pedir_dados(self.janela, "Novo cliente", CAMPOS, None, "Registar",
-                            self.validar)
+                            self.validar, ["nome"])
         if dados is None:
             return
 
@@ -124,7 +126,7 @@ class ClienteView:
         valores = {"nome": cliente.nome, "nif": cliente.nif, "telefone": cliente.telefone,
                    "email": cliente.email, "morada": cliente.morada}
         dados = pedir_dados(self.janela, "Editar cliente " + str(id_cliente), CAMPOS,
-                            valores, "Guardar", self.validar)
+                            valores, "Guardar", self.validar, ["nome"])
         if dados is None:
             return
 
@@ -171,8 +173,13 @@ class ClienteView:
         return int(escolhidos[0])
 
     def validar(self, dados):
-        if dados["nome"] == "":
-            return "O nome é obrigatório."
+        # O nome obrigatório já foi verificado pelo formulário (obrigatorios=["nome"])
+        erros = []
+        if dados["nif"] and not dados["nif"].isdigit():
+            erros.append("O NIF deve conter apenas números.")
+        erro_telefone = validar_numero_telefone(dados["telefone"])
+        if erro_telefone:
+            erros.append(erro_telefone)
         if len(dados["telefone"]) > 20:
-            return "O telefone não pode ter mais de 20 caracteres."
-        return None
+            erros.append("O telefone não pode ter mais de 20 caracteres.")
+        return "\n".join(erros) if erros else None

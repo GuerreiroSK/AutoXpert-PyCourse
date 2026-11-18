@@ -46,6 +46,9 @@ class TestTecnicoView(unittest.TestCase):
     def test_botao_guardar_mostra_o_erro_num_aviso(self):
         self.controller.guardar.side_effect = ValueError("Custo/hora inválido.")
         pagina = TecnicoView(self.janela, self.controller)
+        # Com campos válidos a validação da view passa e o erro vem do controller
+        pagina.campos["nome"].set("Ana")
+        pagina.campos["custo_hora"].set("20")
 
         with patch("src.views.estilo.messagebox.showerror") as aviso:
             pagina.clicar_guardar()

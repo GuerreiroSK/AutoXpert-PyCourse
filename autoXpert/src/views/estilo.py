@@ -3,6 +3,8 @@ import unicodedata
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+from src.services.validacao import validar_campos
+
 # Aspeto comum a todas as janelas do AutoXpert.
 # Cada view usa estas funções em vez de montar o seu próprio aspeto, para a
 # aplicação ficar igual em todos os módulos (cabeçalho, tabelas, formulários, avisos).
@@ -295,6 +297,30 @@ def mostrar_detalhe(pai, titulo, pares):
     return janela
 
 
+# ================= Feedback visual nos campos (T1.4) =================
+
+COR_ERRO = "#ffe5e5"   # vermelho claro (#FFE5E5): campo com erro
+COR_NORMAL = "#ffffff"   # igual ao "white" (é como o Tk o devolve)
+
+
+# Pinta o campo a vermelho claro (só funciona em tk.Entry, que aceita background=)
+def marcar_erro(entrada):
+    entrada.configure(background=COR_ERRO)
+
+
+# Ao sair do campo: se já tem texto, volta ao normal; se continua vazio, fica a
+# vermelho (ainda falta preencher)
+def repor_cor_campo(evento):
+    if evento.widget.get().strip() != "":
+        evento.widget.configure(background=COR_NORMAL)
+
+
+# Liga o "voltar ao normal" a um campo. add="+" para não apagar outras ligações
+# que o campo já tenha ao FocusOut.
+def preparar_campo(entrada):
+    entrada.bind("<FocusOut>", repor_cor_campo, add="+")
+
+
 # ================= Formulários =================
 
 class DialogoFormulario:
@@ -307,12 +333,17 @@ class DialogoFormulario:
     # validar: função opcional que recebe o dicionário e devolve uma mensagem de
     #          erro (a janela fica aberta) ou None (tudo certo)
 
+    # obrigatorios (opcional): lista das chaves dos campos que não podem ficar vazios.
+    # Fica no formulário (e não em cada módulo) para todos avisarem da mesma maneira:
+    # uma só mensagem com TODOS os campos em falta e esses campos a vermelho.
     def __init__(self, pai, titulo, campos, valores=None, texto_botao="Guardar",
-                 validar=None):
+                 validar=None, obrigatorios=None):
         self.pai = pai
         self.validar = validar
+        self.obrigatorios = obrigatorios if obrigatorios is not None else []
         self.resultado = None
         self.entradas = {}
+        self.rotulos = {}   # chave -> rótulo, para escrever "Nome é obrigatório."
 
         self.janela = tk.Toplevel(pai)
         self.janela.title(titulo)
@@ -333,9 +364,12 @@ class DialogoFormulario:
                 entrada = ttk.Combobox(corpo, values=campo[2], state="readonly", width=28)
                 entrada.set(campo[2][0])
             else:
-                entrada = ttk.Entry(corpo, width=32)
+                entrada = tk.Entry(corpo, width=32)
             entrada.grid(row=linha, column=1, sticky="w", pady=5)
             self.entradas[chave] = entrada
+            self.rotulos[chave] = rotulo
+            if isinstance(entrada, tk.Entry):
+                preparar_campo(entrada)
             linha += 1
 
         if valores is not None:
@@ -373,10 +407,28 @@ class DialogoFormulario:
         dados = {}
         for chave in self.entradas:
             dados[chave] = self.entradas[chave].get().strip()
+
+        # 1.º os campos obrigatórios vazios (todos de uma vez, a vermelho)
+        a_validar = {}
+        for chave in self.entradas:
+            if isinstance(self.entradas[chave], ttk.Combobox):
+                continue   # as listas de escolha têm sempre um valor
+            a_validar[self.rotulos[chave]] = {
+                "valor": dados[chave], "obrigatorio": chave in self.obrigatorios}
+        erros_campos = validar_campos(a_validar)
+        if erros_campos:
+            for chave in self.obrigatorios:
+                if dados[chave] == "":
+                    marcar_erro(self.entradas[chave])
+            messagebox.showerror("Erro de validação", "\n".join(erros_campos),
+                                 parent=self.janela)
+            return
+
+        # 2.º as regras próprias de cada módulo (números, datas, ...)
         if self.validar is not None:
             erro = self.validar(dados)
             if erro is not None:
-                messagebox.showerror("Erro", erro, parent=self.janela)
+                messagebox.showerror("Erro de validação", erro, parent=self.janela)
                 return
         self.resultado = dados
         self.janela.destroy()
@@ -397,8 +449,10 @@ class DialogoFormulario:
 
 
 # Atalho: abre o formulário e devolve o dicionário (ou None se cancelado)
-def pedir_dados(pai, titulo, campos, valores=None, texto_botao="Guardar", validar=None):
-    return DialogoFormulario(pai, titulo, campos, valores, texto_botao, validar).mostrar()
+def pedir_dados(pai, titulo, campos, valores=None, texto_botao="Guardar", validar=None,
+                obrigatorios=None):
+    return DialogoFormulario(pai, titulo, campos, valores, texto_botao, validar,
+                             obrigatorios).mostrar()
 
 
 def _validar_texto_obrigatorio(dados):

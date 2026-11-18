@@ -52,7 +52,7 @@ class LogAlteracaoOTView:
             ("valor_novo", "Novo valor"),
         ]
         dados = pedir_dados(self.pai(), "Registar alteração", campos, None, "Registar",
-                            self.validar)
+                            self.validar, ["id_ot", "campo", "valor_novo"])
         if dados is None:
             return None
 
@@ -113,8 +113,5 @@ class LogAlteracaoOTView:
     def validar(self, dados):
         if not dados["id_ot"].isdigit() or int(dados["id_ot"]) < 1:
             return "O ID da ordem de trabalho tem de ser um número inteiro positivo."
-        if dados["campo"] == "":
-            return "Indique o campo alterado."
-        if dados["valor_novo"] == "":
-            return "Indique o novo valor."
+        # "campo" e "novo valor" obrigatórios: já verificados pelo formulário
         return None
