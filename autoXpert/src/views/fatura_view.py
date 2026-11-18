@@ -6,8 +6,10 @@ from datetime import date, datetime
 from tkinter import ttk, messagebox
 
 
+from src.services.validacao import validar_campos
+
 from src.views.estilo import (
-    criar_janela, criar_cabecalho, criar_tabela, limpar_tabela, criar_barra_estado,
+    criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
     texto, pedir_dados, pedir_inteiro, mostrar_erro, mostrar_info, perguntar_sim_nao,
     texto_do_erro
 )
@@ -67,27 +69,37 @@ class FaturaView:
 
         corpo = ttk.Frame(self.janela, padding=10)
         corpo.pack(fill="both", expand=True)
+
+        self.pesquisa = PesquisaTabela(corpo, self.mostrar_contagem)
+        self.pesquisa.quadro.pack(fill="x", pady=(0, 8))
         self.tabela = criar_tabela(corpo, COLUNAS, 12)
+        self.pesquisa.associar(self.tabela)
 
         self.listar_faturas()
 
     # ================= Ações =================
 
     def listar_faturas(self):
-        limpar_tabela(self.tabela)
         faturas = self.controller.listar_faturas()
+        linhas = []
         for f in faturas:
             if f.pago:
                 pago = "Sim"
             else:
                 pago = "Não"
-            self.tabela.insert("", "end", iid=str(f.id_fatura), values=(
-                f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2), pago,
-                texto(f.data_pagamento), texto(f.metodo_pagamento)))
-        if len(faturas) == 0:
+            valores = (f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2),
+                       pago, texto(f.data_pagamento), texto(f.metodo_pagamento))
+            linhas.append((str(f.id_fatura), valores, ()))
+        self.pesquisa.definir_linhas(linhas)
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if total == 0:
             self.barra.set("Não existem faturas registadas.")
+        elif self.pesquisa.pesquisa_ativa():
+            self.barra.set(str(visiveis) + " de " + str(total) + " fatura(s)")
         else:
-            self.barra.set(str(len(faturas)) + " fatura(s)")
+            self.barra.set(str(total) + " fatura(s)")
 
     def gerar_fatura(self):
         id_ot = pedir_inteiro(self.janela, "Gerar fatura", "ID da ordem de trabalho")
@@ -113,7 +125,7 @@ class FaturaView:
             ("metodo", "Método de pagamento", [""] + METODOS),
         ]
         dados = pedir_dados(self.janela, "Nova fatura", campos, None, "Registar",
-                            self.validar_fatura)
+                            self.validar_fatura, ["id_ot", "valor"])
         if dados is None:
             return
 
@@ -143,7 +155,8 @@ class FaturaView:
             ("metodo", "Método de pagamento", METODOS),
         ]
         valores = {"data_pagamento": date.today().isoformat()}
-        dados = pedir_dados(self.janela, "Marcar como paga", campos, valores, "Confirmar")
+        dados = pedir_dados(self.janela, "Marcar como paga", campos, valores, "Confirmar",
+                            self.validar_data_pagamento, ["data_pagamento"])
         if dados is None:
             return
 
@@ -185,7 +198,7 @@ class FaturaView:
         ]
         valores = {"mes": str(date.today().month), "ano": str(date.today().year)}
         dados = pedir_dados(self.janela, "Relatório mensal", campos, valores, "Exportar",
-                            self.validar_relatorio)
+                            self.validar_relatorio, ["ano"])
         if dados is None:
             return
 
@@ -245,22 +258,39 @@ class FaturaView:
         return int(escolhidas[0])
 
     def validar_fatura(self, dados):
-        if not dados["id_ot"].isdigit() or int(dados["id_ot"]) < 1:
-            return "O ID da OT tem de ser um número inteiro positivo."
+        erros = validar_campos({
+            "ID da OT": {"valor": dados["id_ot"], "tipo": "inteiro"},
+            "Valor total": {"valor": dados["valor"].replace(",", "."), "tipo": "decimal"},
+        })
+        if dados["id_ot"].isdigit() and int(dados["id_ot"]) < 1:
+            erros.append("O ID da OT tem de ser positivo.")
         try:
-            valor = float(dados["valor"].replace(",", "."))
+            if float(dados["valor"].replace(",", ".")) < 0:
+                erros.append("O valor não pode ser negativo.")
         except ValueError:
-            return "O valor tem de ser um número."
-        if valor < 0:
-            return "O valor não pode ser negativo."
+            pass
+        if dados["data_pagamento"]:
+            try:
+                datetime.strptime(dados["data_pagamento"], "%Y-%m-%d")
+            except ValueError:
+                erros.append("A data de pagamento deve estar no formato AAAA-MM-DD.")
         if dados["pago"] == "Sim" and dados["metodo"] == "":
-            return "Indique o método de pagamento."
+            erros.append("Indique o método de pagamento.")
+        return "\n".join(erros) if erros else None
+
+    # Marcar como paga: a data é obrigatória e tem de ter o formato certo
+    def validar_data_pagamento(self, dados):
+        try:
+            datetime.strptime(dados["data_pagamento"], "%Y-%m-%d")
+        except ValueError:
+            return "A data de pagamento deve estar no formato AAAA-MM-DD."
         return None
 
     def validar_relatorio(self, dados):
-        if not dados["ano"].isdigit() or len(dados["ano"]) != 4:
-            return "O ano tem de ter 4 dígitos (ex.: 2026)."
-        return None
+        erros = validar_campos({"Ano": {"valor": dados["ano"], "tipo": "inteiro"}})
+        if dados["ano"].isdigit() and len(dados["ano"]) != 4:
+            erros.append("O ano tem de ter 4 dígitos (ex.: 2026).")
+        return "\n".join(erros) if erros else None
 
     # Cria um campo de informação com o respetivo título e valor.
     def criar_campo_detalhe(self, quadro, titulo, valor, linha, coluna):
@@ -413,3 +443,4 @@ class FaturaView:
             text="Fechar",
             command=janela.destroy
         ).pack(pady=10)
+
