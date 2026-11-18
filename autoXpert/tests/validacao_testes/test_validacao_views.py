@@ -46,7 +46,9 @@ class TestDialogoFormulario(Base):
         self.assertIn("Morada é obrigatório.", mensagem)    # numa só mensagem
         self.assertNotIn("Telefone", mensagem)              # este é opcional
         self.assertEqual(str(dialogo.entradas["nome"].cget("background")), COR_ERRO)
-        self.assertEqual(str(dialogo.entradas["telefone"].cget("background")), COR_NORMAL)
+        # Um campo sem erro não fica a vermelho. Não se compara com "branco": no Windows
+        # a cor por defeito de um tk.Entry é "SystemWindow" e não "#ffffff".
+        self.assertNotEqual(str(dialogo.entradas["telefone"].cget("background")).lower(), COR_ERRO)
         self.assertIsNone(dialogo.resultado)
 
     def test_campo_a_vermelho_volta_ao_normal_depois_de_corrigido(self):
@@ -167,7 +169,7 @@ class TestPecaView(Base):
         self.assertIn("Preço de venda não pode ser negativo", mensagem)
         self.assertEqual(str(self.pagina.entradas["preco_compra"].cget("background")), COR_ERRO)
         self.assertEqual(str(self.pagina.entradas["preco_venda"].cget("background")), COR_ERRO)
-        self.assertEqual(str(self.pagina.entradas["nome"].cget("background")), COR_NORMAL)
+        self.assertNotEqual(str(self.pagina.entradas["nome"].cget("background")).lower(), COR_ERRO)
 
     def test_ajustar_stock_com_letras(self):
         self.pagina.movimento.set("abc")
