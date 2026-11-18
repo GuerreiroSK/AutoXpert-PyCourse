@@ -40,8 +40,9 @@ from src.services.peca_service import PecaService
 from src.controllers.peca_controller import PecaController
 from src.views.peca_view import PecaView
 
-from src.views.estilo import aplicar_estilo, criar_janela, criar_cabecalho
+from src.views.estilo import criar_janela, criar_cabecalho
 from src.views.menu_principal_view import MenuPrincipalView
+from src.views.tema import aplicar_tema
 
 
 class AplicacaoAutoXpert:
@@ -177,7 +178,7 @@ def main():
     inicializar_bd()
 
     raiz = tk.Tk()
-    aplicar_estilo(raiz)
+    aplicar_tema(raiz)
     aplicacao = AplicacaoAutoXpert(raiz)
     raiz.mainloop()
     aplicacao.fechar()

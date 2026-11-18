@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 from src.views.linha_ot_view import PainelLinhasOT
+from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
 from src.views.estilo import (
     criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela, marcar_erro, preparar_campo
 )
@@ -109,6 +110,7 @@ class JanelaOTs:
 
         self.lista = ttk.Treeview(quadro, columns=nomes, show="headings",
                                   height=7, selectmode="browse")
+        configurar_linhas_alternadas(self.lista)
         for nome, titulo, largura in colunas:
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=largura, anchor="center")
@@ -252,6 +254,8 @@ class JanelaOTs:
             return
         linhas = []
         for ot in dados:
+            self.lista.insert("", "end", iid=str(ot.id_ot), values=self.valores_da_ot(ot),
+                              tags=tags_linha_alternada(self.lista))
             linhas.append((str(ot.id_ot), self.valores_da_ot(ot), ()))
         self.pesquisa.definir_linhas(linhas)
         self.limpar_detalhe()

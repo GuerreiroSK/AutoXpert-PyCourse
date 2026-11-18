@@ -100,6 +100,38 @@ autoXpert/
     └── bd_testes/       # base de dados em memória usada nos testes
 ```
 
+### Tema visual
+
+O ficheiro `src/views/tema.py` disponibiliza `aplicar_tema(root)`, com uma
+paleta navy e branco, fundo cinzento claro e fontes uniformes para botões,
+campos, tabelas, frames e labels. Os cabeçalhos usam fonte maior (14 pt).
+As tabelas têm cabeçalhos navy e alternam o fundo das linhas para facilitar
+a leitura.
+Para o ativar, chamar a função depois de criar `root = tk.Tk()`, antes de
+construir as vistas:
+
+```python
+from src.views.tema import aplicar_tema
+
+aplicar_tema(root)
+```
+
+O arranque em `main.py` já chama esta função. As janelas `Toplevel` partilham
+o estilo ttk da janela principal e recebem o mesmo fundo.
+
+- Tema base `clam`, que permite personalizar os estilos ttk.
+- `TButton`: fundo azul navy `#1A3A5C`, texto branco e fonte **Calibri 10 bold**.
+- `Perigo.TButton`: fundo vermelho para eliminar registos ou remover linhas,
+  com a mesma fonte e texto branco.
+- `Menu.TButton` e `Menu.Perigo.TButton`: mantêm as cores e a fonte dos
+  respetivos estilos, com mais espaço interior para os menus.
+
+Exemplo de botão de perigo:
+
+```python
+ttk.Button(pai, text="Eliminar", style="Perigo.TButton", command=eliminar)
+```
+
 ### Convenções do grupo
 
 - **Nomes de ficheiros:** `<entidade>_<camada>.py`, por exemplo `peca_service.py`. As entidades são `cliente`, `viatura`, `tecnico`, `peca`, `ot`, `linha_ot`, `fatura` e `log_alteracao_ot`.

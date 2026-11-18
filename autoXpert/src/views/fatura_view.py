@@ -8,6 +8,7 @@ from tkinter import ttk, messagebox
 
 from src.services.validacao import validar_campos
 
+from src.views.tema import tags_linha_alternada
 from src.views.estilo import (
     criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
     texto, pedir_dados, pedir_inteiro, mostrar_erro, mostrar_info, perguntar_sim_nao,
@@ -55,7 +56,7 @@ class FaturaView:
         # Abre a janela com os dados completos da fatura selecionada.
         ttk.Button(barra_botoes, text="Ver detalhe",
                    command=self.ver_detalhe).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Eliminar",
+        ttk.Button(barra_botoes, text="Eliminar", style="Perigo.TButton",
                    command=self.eliminar_fatura).pack(side="left", padx=5)
         ttk.Button(barra_botoes, text="Relatório mensal (Excel)",
                    command=self.exportar_relatorio).pack(side="left", padx=5)
@@ -87,6 +88,11 @@ class FaturaView:
                 pago = "Sim"
             else:
                 pago = "Não"
+            self.tabela.insert("", "end", iid=str(f.id_fatura), values=(
+                f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2), pago,
+                texto(f.data_pagamento), texto(f.metodo_pagamento)),
+                tags=tags_linha_alternada(self.tabela))
+        if len(faturas) == 0:
             valores = (f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2),
                        pago, texto(f.data_pagamento), texto(f.metodo_pagamento))
             linhas.append((str(f.id_fatura), valores, ()))

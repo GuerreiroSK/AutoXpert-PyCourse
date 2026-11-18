@@ -36,15 +36,15 @@ class ViaturaView:
         corpo.pack(fill="both", expand=True)
 
         botoes = [
-            ("Registar viatura", controller.registar_viatura),
-            ("Consultar viatura", controller.consultar_viatura),
-            ("Listar viaturas", controller.listar_viaturas),
-            ("Atualizar viatura", controller.atualizar_viatura),
-            ("Eliminar viatura", controller.eliminar_viatura),
-            ("Consultar histórico", controller.consultar_historico),
+            ("Registar viatura", controller.registar_viatura, "Menu.TButton"),
+            ("Consultar viatura", controller.consultar_viatura, "Menu.TButton"),
+            ("Listar viaturas", controller.listar_viaturas, "Menu.TButton"),
+            ("Atualizar viatura", controller.atualizar_viatura, "Menu.TButton"),
+            ("Eliminar viatura", controller.eliminar_viatura, "Menu.Perigo.TButton"),
+            ("Consultar histórico", controller.consultar_historico, "Menu.TButton"),
         ]
-        for texto_botao, comando in botoes:
-            ttk.Button(corpo, text=texto_botao, style="Menu.TButton",
+        for texto_botao, comando, estilo in botoes:
+            ttk.Button(corpo, text=texto_botao, style=estilo,
                        command=comando).pack(fill="x", pady=4)
 
         ttk.Button(corpo, text="Fechar", command=self.janela.destroy).pack(pady=(12, 0))

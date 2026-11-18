@@ -3,32 +3,19 @@ import unicodedata
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+from src.views.tema import (
+    COR_CABECALHO, COR_FUNDO, COR_TEXTO_CABECALHO, aplicar_tema,
+    configurar_linhas_alternadas, tags_linha_alternada
+)
 from src.services.validacao import validar_campos
 
 # Aspeto comum a todas as janelas do AutoXpert.
 # Cada view usa estas funções em vez de montar o seu próprio aspeto, para a
 # aplicação ficar igual em todos os módulos (cabeçalho, tabelas, formulários, avisos).
 
-COR_FUNDO = "#f2f4f7"
-COR_CABECALHO = "#1f3a5f"
-COR_TEXTO_CABECALHO = "#ffffff"
-
-
 # Chamar uma vez, logo a seguir a criar a janela principal (tk.Tk())
 def aplicar_estilo(raiz):
-    estilo = ttk.Style(raiz)
-    if "clam" in estilo.theme_names():
-        estilo.theme_use("clam")
-    raiz.configure(background=COR_FUNDO)
-
-    estilo.configure(".", background=COR_FUNDO)
-    estilo.configure("TButton", padding=(10, 5))
-    estilo.configure("Menu.TButton", padding=(10, 10), font=("TkDefaultFont", 12))
-    estilo.configure("Cabecalho.TLabel", background=COR_CABECALHO,
-                     foreground=COR_TEXTO_CABECALHO, padding=(15, 10),
-                     font=("TkDefaultFont", 16, "bold"))
-    estilo.configure("Treeview", rowheight=24)
-    estilo.configure("Treeview.Heading", font=("TkDefaultFont", 10, "bold"))
+    aplicar_tema(raiz)
 
 
 # ================= Janelas e blocos comuns =================
@@ -73,6 +60,7 @@ def criar_tabela(pai, colunas, altura):
 
     tabela = ttk.Treeview(quadro, columns=nomes, show="headings",
                           height=altura, selectmode="browse")
+    configurar_linhas_alternadas(tabela)
     for nome, titulo, largura, alinhamento in colunas:
         tabela.heading(nome, text=titulo)
         tabela.column(nome, width=largura, anchor=alinhamento)
@@ -271,6 +259,8 @@ def mostrar_tabela(pai, titulo, colunas, linhas, largura, altura):
 
     linhas_completas = []
     for linha in linhas:
+        tabela.insert("", "end", values=linha,
+                      tags=tags_linha_alternada(tabela))
         linhas_completas.append((None, linha, ()))
     pesquisa.definir_linhas(linhas_completas)
 

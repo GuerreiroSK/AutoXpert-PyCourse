@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 
+from src.views.estilo import mostrar_erro, mostrar_info, perguntar_sim_nao
+from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
 from src.services.validacao import validar_campos
 
 from src.views.estilo import (
@@ -39,6 +41,7 @@ class PainelLinhasOT:
 
         self.tabela = ttk.Treeview(self.quadro, columns=nomes, show="headings",
                                    height=5, selectmode="browse")
+        configurar_linhas_alternadas(self.tabela)
         for nome, titulo, largura in colunas:
             self.tabela.heading(nome, text=titulo)
             if nome == "descricao":
@@ -85,6 +88,7 @@ class PainelLinhasOT:
         ttk.Button(botoes, text="Adicionar linha",
                    command=self.adicionar_linha).pack(side="left", padx=5)
         ttk.Button(botoes, text="Remover linha selecionada",
+                   style="Perigo.TButton",
                    command=self.remover_linha).pack(side="left", padx=5)
 
     # ================= Funções auxiliares =================
@@ -116,7 +120,8 @@ class PainelLinhasOT:
             self.tabela.insert("", "end", iid=str(linha.id_linha), values=(
                 linha.id_linha, linha.tipo, linha.descricao, linha.quantidade,
                 self.texto(linha.horas_trabalhadas), linha.preco_unitario,
-                self.texto(linha.id_peca), linha.subtotal()))
+                self.texto(linha.id_peca), linha.subtotal()),
+                tags=tags_linha_alternada(self.tabela))
 
     # Esvazia a tabela (quando não há nenhuma OT selecionada)
     def limpar(self):
