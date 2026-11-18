@@ -120,6 +120,15 @@ class OrdemTrabalhoService:
     def obter_ot(self, id_ot):
         return self._obter_ot_existente(id_ot)
 
+    # Obtém os dados detalhados de uma OT através do repositório.
+    def obter_detalhe_ot(self, id_ot):
+        detalhe = self.repo_ot.obter_detalhe_por_id(id_ot)
+
+        if detalhe is None:
+            raise ValueError("OT não encontrada: " + str(id_ot))
+
+        return detalhe
+
     # RF14
     def listar_em_curso(self):
         return self.repo_ot.listar_em_curso()

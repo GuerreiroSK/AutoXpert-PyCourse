@@ -1,7 +1,13 @@
+import tkinter as tk
 from tkinter import ttk
 
 from src.views.estilo import mostrar_erro, mostrar_info, perguntar_sim_nao
 from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.services.validacao import validar_campos
+
+from src.views.estilo import (
+    mostrar_erro, mostrar_info, perguntar_sim_nao, marcar_erro, preparar_campo
+)
 
 
 class PainelLinhasOT:
@@ -54,24 +60,28 @@ class PainelLinhasOT:
         self.combo_tipo.set(self.tipos[0])
 
         ttk.Label(form, text="Descrição:").grid(row=0, column=2, padx=(10, 5), sticky="e")
-        self.entrada_descricao = ttk.Entry(form, width=30)
+        self.entrada_descricao = tk.Entry(form, width=30)
         self.entrada_descricao.grid(row=0, column=3, padx=5)
 
         ttk.Label(form, text="Qtd:").grid(row=0, column=4, padx=(10, 5), sticky="e")
-        self.entrada_quantidade = ttk.Entry(form, width=6)
+        self.entrada_quantidade = tk.Entry(form, width=6)
         self.entrada_quantidade.grid(row=0, column=5, padx=5)
 
         ttk.Label(form, text="Preço unit.:").grid(row=0, column=6, padx=(10, 5), sticky="e")
-        self.entrada_preco = ttk.Entry(form, width=8)
+        self.entrada_preco = tk.Entry(form, width=8)
         self.entrada_preco.grid(row=0, column=7, padx=5)
 
         ttk.Label(form, text="Horas:").grid(row=0, column=8, padx=(10, 5), sticky="e")
-        self.entrada_horas = ttk.Entry(form, width=6)
+        self.entrada_horas = tk.Entry(form, width=6)
         self.entrada_horas.grid(row=0, column=9, padx=5)
 
         ttk.Label(form, text="Peça (id):").grid(row=0, column=10, padx=(10, 5), sticky="e")
-        self.entrada_peca = ttk.Entry(form, width=6)
+        self.entrada_peca = tk.Entry(form, width=6)
         self.entrada_peca.grid(row=0, column=11, padx=5)
+        # Os campos ficam a vermelho quando têm erro e voltam ao normal ao serem corrigidos
+        for campo_texto in (self.entrada_descricao, self.entrada_quantidade,
+                            self.entrada_preco, self.entrada_horas, self.entrada_peca):
+            preparar_campo(campo_texto)
 
         botoes = ttk.Frame(self.quadro)
         botoes.pack(fill="x", pady=(4, 0))
@@ -120,10 +130,50 @@ class PainelLinhasOT:
 
     # ================= Ações =================
 
+    # Diz se o texto é um número (aceita vírgula decimal)
+    def e_numero(self, valor):
+        try:
+            float(valor.strip().replace(",", "."))
+            return True
+        except ValueError:
+            return False
+
     # RF04 + RF13: o custo total é recalculado pelo service
     def adicionar_linha(self):
         if self.id_ot_atual is None:
             mostrar_info(self.quadro, "Atenção", "Selecione primeiro uma OT na lista.")
+            return
+        dados_validar = {
+            "Descrição": self.entrada_descricao.get(),
+            "Quantidade": {"valor": self.entrada_quantidade.get(), "tipo": "inteiro"},
+            "Preço unitário": {"valor": self.entrada_preco.get(), "tipo": "decimal"},
+        }
+        erros = validar_campos(dados_validar)
+        horas = self.entrada_horas.get().strip()
+        if horas:
+            try:
+                if float(horas.replace(",", ".")) < 0:
+                    erros.append("As horas não podem ser negativas.")
+            except ValueError:
+                erros.append("As horas devem ser um número válido.")
+        peca = self.entrada_peca.get().strip()
+        if peca and not peca.isdigit():
+            erros.append("O ID da peça deve conter apenas números.")
+        if erros:
+            # Pinta a vermelho os campos obrigatórios vazios; os valores inválidos
+            # (letras num número, etc.) ficam também a vermelho
+            for entrada in (self.entrada_descricao, self.entrada_quantidade,
+                            self.entrada_preco):
+                if not entrada.get().strip():
+                    marcar_erro(entrada)
+            for entrada in (self.entrada_quantidade, self.entrada_preco):
+                if entrada.get().strip() and not self.e_numero(entrada.get()):
+                    marcar_erro(entrada)
+            if horas and not self.e_numero(horas):
+                marcar_erro(self.entrada_horas)
+            if peca and not peca.isdigit():
+                marcar_erro(self.entrada_peca)
+            mostrar_erro(self.quadro, "Erro de validação", "\n".join(erros))
             return
         id_ot = self.id_ot_atual
         ok, resultado = self.controller.adicionar_linha(

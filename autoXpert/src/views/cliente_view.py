@@ -2,8 +2,10 @@ import sqlite3
 from tkinter import ttk
 
 from src.views.tema import tags_linha_alternada
+from src.services.validacao import validar_numero_telefone
+
 from src.views.estilo import (
-    criar_janela, criar_cabecalho, criar_tabela, limpar_tabela, criar_barra_estado,
+    criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
     texto, pedir_dados, mostrar_erro, perguntar_sim_nao, texto_do_erro
 )
 
@@ -61,28 +63,46 @@ class ClienteView:
 
         corpo = ttk.Frame(self.janela, padding=10)
         corpo.pack(fill="both", expand=True)
+
+        # A barra de pesquisa fica por cima da tabela. Criamo-la antes da tabela
+        # para o pack() a pôr em cima, e só depois a ligamos à tabela.
+        self.pesquisa = PesquisaTabela(corpo, self.mostrar_contagem)
+        self.pesquisa.quadro.pack(fill="x", pady=(0, 8))
         self.tabela = criar_tabela(corpo, COLUNAS, 12)
+        self.pesquisa.associar(self.tabela)
 
         self.listar_clientes()
 
     # ================= Ações =================
 
     def listar_clientes(self):
-        limpar_tabela(self.tabela)
         clientes = self.controller.listar_clientes()
+        linhas = []
         for c in clientes:
             self.tabela.insert("", "end", iid=str(c.id_cliente), values=(
                 c.id_cliente, c.nome, texto(c.nif), texto(c.telefone),
                 texto(c.email), texto(c.morada), texto(c.data_registo)),
                 tags=tags_linha_alternada(self.tabela))
         if len(clientes) == 0:
+            valores = (c.id_cliente, c.nome, texto(c.nif), texto(c.telefone),
+                       texto(c.email), texto(c.morada), texto(c.data_registo))
+            linhas.append((str(c.id_cliente), valores, ()))
+        # Não inserimos na tabela diretamente: a PesquisaTabela guarda a lista completa
+        # e mostra só o que corresponde ao que estiver escrito na pesquisa
+        self.pesquisa.definir_linhas(linhas)
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if total == 0:
             self.barra.set("Não existem clientes registados.")
+        elif self.pesquisa.pesquisa_ativa():
+            self.barra.set(str(visiveis) + " de " + str(total) + " cliente(s)")
         else:
-            self.barra.set(str(len(clientes)) + " cliente(s)")
+            self.barra.set(str(total) + " cliente(s)")
 
     def adicionar_cliente(self):
         dados = pedir_dados(self.janela, "Novo cliente", CAMPOS, None, "Registar",
-                            self.validar)
+                            self.validar, ["nome"])
         if dados is None:
             return
 
@@ -112,7 +132,7 @@ class ClienteView:
         valores = {"nome": cliente.nome, "nif": cliente.nif, "telefone": cliente.telefone,
                    "email": cliente.email, "morada": cliente.morada}
         dados = pedir_dados(self.janela, "Editar cliente " + str(id_cliente), CAMPOS,
-                            valores, "Guardar", self.validar)
+                            valores, "Guardar", self.validar, ["nome"])
         if dados is None:
             return
 
@@ -159,8 +179,13 @@ class ClienteView:
         return int(escolhidos[0])
 
     def validar(self, dados):
-        if dados["nome"] == "":
-            return "O nome é obrigatório."
+        # O nome obrigatório já foi verificado pelo formulário (obrigatorios=["nome"])
+        erros = []
+        if dados["nif"] and not dados["nif"].isdigit():
+            erros.append("O NIF deve conter apenas números.")
+        erro_telefone = validar_numero_telefone(dados["telefone"])
+        if erro_telefone:
+            erros.append(erro_telefone)
         if len(dados["telefone"]) > 20:
-            return "O telefone não pode ter mais de 20 caracteres."
-        return None
+            erros.append("O telefone não pode ter mais de 20 caracteres.")
+        return "\n".join(erros) if erros else None

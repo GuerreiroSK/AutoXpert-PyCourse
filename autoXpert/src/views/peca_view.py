@@ -1,8 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
 
-from src.views.estilo import executar_acao, perguntar_sim_nao
 from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.views.estilo import (
+    executar_acao, perguntar_sim_nao, PesquisaTabela, marcar_erro, preparar_campo
+)
+from src.services.validacao import validar_campos
 
 
 class PecaView(ttk.Frame):
@@ -45,10 +48,13 @@ class PecaView(ttk.Frame):
                    ("stock_atual", "Stock inicial / atual *"),
                    ("stock_minimo", "Stock mínimo *"), ("fornecedor", "Fornecedor")]
         linha = 0
+        self.entradas = {}   # chave -> campo de texto, para pintar os que têm erro
         for chave, rotulo in rotulos:
             ttk.Label(self, text=rotulo).grid(row=linha, column=0, sticky="w", pady=2)
-            entrada = ttk.Entry(self, textvariable=self.campos[chave])
+            entrada = tk.Entry(self, textvariable=self.campos[chave])
             entrada.grid(row=linha, column=1, sticky="ew", padx=8)
+            preparar_campo(entrada)
+            self.entradas[chave] = entrada
             if chave == "stock_atual":
                 self.entrada_stock = entrada
             linha += 1
@@ -85,7 +91,11 @@ class PecaView(ttk.Frame):
         quadro = ttk.Frame(self)
         quadro.grid(row=10, column=0, columnspan=2, sticky="nsew")
         quadro.columnconfigure(0, weight=1)
-        quadro.rowconfigure(0, weight=1)
+        # Barra de pesquisa por cima da lista, dentro do mesmo quadro: assim não
+        # mexe nas linhas do formulário que ficam acima (a lista passa para a linha 1)
+        quadro.rowconfigure(1, weight=1)
+        self.pesquisa = PesquisaTabela(quadro, self.mostrar_contagem)
+        self.pesquisa.quadro.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         colunas = [("id", "ID"), ("referencia", "Referência"), ("nome", "Nome"),
                    ("stock", "Stock"), ("minimo", "Mínimo"), ("compra", "Compra"),
@@ -101,10 +111,11 @@ class PecaView(ttk.Frame):
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=100, minwidth=50)
         self.lista.tag_configure("baixo", background="#fff2cc")
-        self.lista.grid(row=0, column=0, sticky="nsew")
+        self.lista.grid(row=1, column=0, sticky="nsew")
+        self.pesquisa.associar(self.lista)
 
         barra = ttk.Scrollbar(quadro, orient="vertical", command=self.lista.yview)
-        barra.grid(row=0, column=1, sticky="ns")
+        barra.grid(row=1, column=1, sticky="ns")
         self.lista.configure(yscrollcommand=barra.set)
         self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar)
 
@@ -141,7 +152,7 @@ class PecaView(ttk.Frame):
 
     def carregar(self):
         pecas = self.controller.listar(self.apenas_stock_baixo.get())
-        self.lista.delete(*self.lista.get_children())
+        linhas = []
         for peca in pecas:
             if peca.stock_baixo():
                 alerta = "Stock baixo"
@@ -154,9 +165,23 @@ class PecaView(ttk.Frame):
                 peca.stock_minimo, round(peca.preco_compra, 2),
                 round(peca.preco_venda, 2), alerta),
                 tags=tags_linha_alternada(self.lista, etiquetas))
+            valores = (peca.id_peca, peca.referencia, peca.nome, peca.stock_atual,
+                       peca.stock_minimo, round(peca.preco_compra, 2),
+                       round(peca.preco_venda, 2), alerta)
+            # As etiquetas (cor do stock baixo) vão junto, para a cor se manter
+            # quando a linha volta a aparecer depois de limpar a pesquisa
+            linhas.append((str(peca.id_peca), valores, etiquetas))
+        self.pesquisa.definir_linhas(linhas)
         self.nova()
-        self.estado.set(str(len(pecas)) + " peça(s). Selecione uma linha para editar "
-                        "ou movimentar stock.")
+        self.mostrar_contagem(len(self.lista.get_children()), len(pecas))
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if self.pesquisa.pesquisa_ativa():
+            self.estado.set(str(visiveis) + " de " + str(total) + " peça(s).")
+        else:
+            self.estado.set(str(total) + " peça(s). Selecione uma linha para editar "
+                            "ou movimentar stock.")
 
     def ao_selecionar(self, evento):
         if self.lista.selection():
@@ -180,14 +205,56 @@ class PecaView(ttk.Frame):
         return self.id_selecionado
 
     def guardar(self):
-        dados = {}
-        for chave in self.campos:
-            dados[chave] = self.campos[chave].get()
+        dados = {chave: self.campos[chave].get().strip() for chave in self.campos}
+        self.validar_formulario(dados)
         peca = self.controller.guardar(dados, self.id_selecionado)
         self.carregar()
         self.estado.set("Peça " + str(peca.id_peca) + " guardada.")
 
+    # Valida os campos da peça. Se houver erros pinta esses campos a vermelho e
+    # levanta ValueError com a lista toda: o executar_acao mostra-a num messagebox.
+    # Porquê levantar o erro em vez de abrir aqui o messagebox: um messagebox dentro
+    # deste método bloqueia os testes (esperam uma resposta que ninguém dá) e o
+    # aviso fica igual aos outros erros da aplicação.
+    def validar_formulario(self, dados):
+        campos = {
+            "Referência": ("referencia", dados["referencia"], None),
+            "Nome": ("nome", dados["nome"], None),
+            "Preço de compra": ("preco_compra", dados["preco_compra"], "decimal"),
+            "Preço de venda": ("preco_venda", dados["preco_venda"], "decimal"),
+            "Stock atual": ("stock_atual", dados["stock_atual"], "inteiro"),
+            "Stock mínimo": ("stock_minimo", dados["stock_minimo"], "inteiro"),
+        }
+        a_validar = {}
+        for rotulo in campos:
+            chave, valor, tipo = campos[rotulo]
+            a_validar[rotulo] = {"valor": valor, "tipo": tipo,
+                                 "obrigatorio": chave in ("referencia", "nome")}
+        erros = validar_campos(a_validar)
+
+        # Os valores numéricos não podem ser negativos
+        for rotulo in ("Preço de compra", "Preço de venda", "Stock atual", "Stock mínimo"):
+            valor = campos[rotulo][1].replace(",", ".")
+            try:
+                if float(valor) < 0:
+                    erros.append(rotulo + " não pode ser negativo.")
+            except ValueError:
+                pass   # já foi apanhado pelo validar_campos
+
+        if len(erros) > 0:
+            # Pinta os campos que falharam (o nome do campo aparece no início da mensagem)
+            for rotulo in campos:
+                for erro in erros:
+                    if erro.startswith(rotulo + " "):
+                        marcar_erro(self.entradas[campos[rotulo][0]])
+            raise ValueError("\n".join(erros))
+
     def receber_stock(self):
+        erros = validar_campos({
+            "Quantidade": {"valor": self.movimento.get(), "tipo": "inteiro"},
+            "Preço de compra": {"valor": self.campos["preco_compra"].get(), "tipo": "decimal"}})
+        if len(erros) > 0:
+            raise ValueError("\n".join(erros))
         peca = self.controller.receber_stock(
             self.exigir_selecao(), self.movimento.get(),
             self.campos["fornecedor"].get(), self.campos["preco_compra"].get())
@@ -196,7 +263,10 @@ class PecaView(ttk.Frame):
                         + ": " + str(peca.stock_atual) + ".")
 
     def ajustar_stock(self):
-        peca = self.controller.ajustar_stock(self.exigir_selecao(), self.movimento.get())
+        valor = self.movimento.get().strip()
+        if not valor.lstrip("+-").isdigit() or valor in ("", "+", "-"):
+            raise ValueError("A quantidade deve ser um número inteiro (pode ser negativo).")
+        peca = self.controller.ajustar_stock(self.exigir_selecao(), valor)
         self.carregar()
         self.estado.set("Stock da peça " + str(peca.id_peca) + " ajustado para "
                         + str(peca.stock_atual) + ".")

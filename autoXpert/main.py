@@ -69,12 +69,12 @@ class AplicacaoAutoXpert:
         log_repo = LogAlteracaoOTRepository(self.conexao)
 
         # Clientes
-        cliente_controller = ClienteController(ClienteService(cliente_repo))
-        self.cliente_view = ClienteView(raiz, cliente_controller)
+        self.cliente_controller = ClienteController(ClienteService(cliente_repo))
+        self.cliente_view = ClienteView(raiz, self.cliente_controller)
 
         # Viaturas (o formulário mostra a lista de clientes para escolher)
         viatura_service = ViaturaService(viatura_repo, cliente_repo, ot_repo)
-        viatura_view = ViaturaView(raiz, cliente_controller.listar_clientes)
+        viatura_view = ViaturaView(raiz, self.cliente_controller.listar_clientes)
         self.viatura_controller = ViaturaController(viatura_service, viatura_view)
 
         # Técnicos e peças
@@ -89,8 +89,8 @@ class AplicacaoAutoXpert:
         self.linha_controller = LinhaOTController(linha_service)
 
         # Faturação
-        fatura_controller = FaturaController(FaturaService(fatura_repo))
-        self.fatura_view = FaturaView(raiz, fatura_controller)
+        self.fatura_controller = FaturaController(FaturaService(fatura_repo))
+        self.fatura_view = FaturaView(raiz, self.fatura_controller)
 
         # Registo de alterações das OTs
         log_view = LogAlteracaoOTView(raiz)
@@ -105,7 +105,40 @@ class AplicacaoAutoXpert:
             ("Faturação", self.fatura_view.menu),
             ("Registo de alterações", self.log_controller.menu),
         ]
-        MenuPrincipalView(raiz, entradas)
+        # Cria o menu principal e disponibiliza a função de consulta do sumário.
+        MenuPrincipalView(raiz, entradas, self.obter_sumario)
+
+    # Obtém as estatísticas necessárias para o painel de sumário.
+    def obter_sumario(self):
+        # Consulta todos os clientes.
+        clientes = self.cliente_controller.listar_clientes()
+
+        # Consulta todas as ordens de trabalho.
+        sucesso, ordens = self.ot_controller.listar_todas()
+
+        if not sucesso:
+            raise ValueError(ordens)
+
+        # Consulta todas as faturas.
+        faturas = self.fatura_controller.listar_faturas()
+
+        # Conta as OTs que ainda não foram concluídas nem entregues.
+        ordens_abertas = sum(
+            1 for ot in ordens
+            if ot.estado not in ("Concluída", "Entregue")
+        )
+
+        # Conta as faturas que ainda não foram pagas.
+        faturas_pendentes = sum(
+            1 for fatura in faturas
+            if not fatura.pago
+        )
+
+        return {
+            "clientes": len(clientes),
+            "ordens_abertas": ordens_abertas,
+            "faturas_pendentes": faturas_pendentes
+        }
 
     def abrir_tecnicos(self):
         self.janela_tecnicos = self.abrir_pagina(

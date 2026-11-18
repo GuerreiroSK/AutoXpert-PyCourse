@@ -1,7 +1,7 @@
 # AutoXpert – lista de alterações (limpeza e uniformização)
 
 O que foi encontrado no código que estava na `main`, o que foi mudado e porquê.
-Resultado: **444 testes a passar**, `main.py` a arrancar com os 7 módulos.
+Resultado: **458 testes a passar**, `main.py` a arrancar com os 7 módulos.
 
 ## 1. Problemas encontrados e como ficaram
 
@@ -24,6 +24,7 @@ Resultado: **444 testes a passar**, `main.py` a arrancar com os 7 módulos.
 | 15 | Métodos dos repositórios com nomes diferentes (`criar`, `registar`, `procurar_por_id`, `apagar`, `listar`, `listar_todas`) | Nomes iguais em todos: `inserir`, `obter_por_id`, `listar_todos`, `atualizar`, `eliminar` (e `eliminar_por_ot`). `inserir` devolve sempre o objeto com o `id` preenchido |
 | 16 | Campo `km_estrada` (nome errado, não corresponde ao enunciado) | Renomeado para `km_entrada` no schema, model, repositório, service, controller, view e testes. No ecrã aparece como **"KM da viatura"** |
 | 17 | O Log só se podia consultar: nada o preenchia | O `OrdemTrabalhoService` regista no Log cada mudança de **estado** e de **técnico** (valor anterior e novo). Criar uma OT, ou "mudar" para o mesmo valor, não regista nada |
+| 18 | Listagens sem pesquisa (T3.1 a T3.5) | `PesquisaTabela` em `estilo.py`: barra "Pesquisar:" + "Limpar", filtro em tempo real (`trace_add`), sem distinguir maiúsculas/acentos, lista completa guardada à parte. Ligada a clientes, viaturas, técnicos, OTs, peças, faturas e registo de alterações |
 
 ## 2. Erros de comportamento encontrados (e corrigidos)
 

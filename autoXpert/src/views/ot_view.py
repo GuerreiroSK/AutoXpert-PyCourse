@@ -1,10 +1,16 @@
 import tkinter as tk
-from tkinter import ttk
-from datetime import date
+from tkinter import ttk, messagebox
+from datetime import date, datetime
+import csv
+from pathlib import Path
+
 
 from src.views.linha_ot_view import PainelLinhasOT
-from src.views.estilo import criar_cabecalho, mostrar_erro, mostrar_info
 from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.views.estilo import (
+    criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela, marcar_erro, preparar_campo
+)
+from src.services.validacao import validar_campos
 
 
 class JanelaOTs:
@@ -21,7 +27,7 @@ class JanelaOTs:
         self.id_ot_atual = None  # OT que está selecionada na lista
 
         self.raiz.title("AutoXpert - Ordens de Trabalho")
-        self.raiz.geometry("1180x810")
+        self.raiz.geometry("1180x850")
 
         criar_cabecalho(self.raiz, "Ordens de Trabalho")
         self.criar_pesquisa()
@@ -40,8 +46,9 @@ class JanelaOTs:
 
         # Linha 0: histórico por matrícula (RF07), atalhos (RF14) e nova OT
         ttk.Label(quadro, text="Matrícula:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.entrada_matricula = ttk.Entry(quadro, width=12)
+        self.entrada_matricula = tk.Entry(quadro, width=12)
         self.entrada_matricula.grid(row=0, column=1, padx=5, pady=5)
+        preparar_campo(self.entrada_matricula)
         self.entrada_matricula.bind("<Return>", self.ao_enter_matricula)
         ttk.Button(quadro, text="Histórico da viatura",
                    command=self.pesquisar_historico).grid(row=0, column=2, padx=5, pady=5)
@@ -49,6 +56,9 @@ class JanelaOTs:
                    command=self.mostrar_em_curso).grid(row=0, column=3, padx=5, pady=5)
         ttk.Button(quadro, text="Todas",
                    command=self.mostrar_todas).grid(row=0, column=4, padx=5, pady=5)
+        # Botão para exportar as Ordens de Trabalho apresentadas na tabela.
+        ttk.Button(quadro, text="Exportar CSV",
+                   command=self.exportar_csv).grid(row=0, column=7, padx=5, pady=5)
         ttk.Button(quadro, text="Nova OT",
                    command=self.abrir_nova_ot).grid(row=0, column=8, padx=5, pady=5, sticky="e")
 
@@ -59,16 +69,19 @@ class JanelaOTs:
         self.combo_filtro_estado.grid(row=1, column=1, padx=5, pady=5)
 
         ttk.Label(quadro, text="Técnico (id):").grid(row=1, column=2, padx=5, pady=5, sticky="e")
-        self.entrada_filtro_tecnico = ttk.Entry(quadro, width=6)
+        self.entrada_filtro_tecnico = tk.Entry(quadro, width=6)
         self.entrada_filtro_tecnico.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+        preparar_campo(self.entrada_filtro_tecnico)
 
         ttk.Label(quadro, text="De:").grid(row=1, column=4, padx=5, pady=5, sticky="e")
-        self.entrada_data_de = ttk.Entry(quadro, width=11)
+        self.entrada_data_de = tk.Entry(quadro, width=11)
         self.entrada_data_de.grid(row=1, column=5, padx=5, pady=5)
+        preparar_campo(self.entrada_data_de)
 
         ttk.Label(quadro, text="Até:").grid(row=1, column=6, padx=5, pady=5, sticky="e")
-        self.entrada_data_ate = ttk.Entry(quadro, width=11)
+        self.entrada_data_ate = tk.Entry(quadro, width=11)
         self.entrada_data_ate.grid(row=1, column=7, padx=5, pady=5)
+        preparar_campo(self.entrada_data_ate)
 
         ttk.Button(quadro, text="Filtrar",
                    command=self.pesquisar_filtros).grid(row=1, column=8, padx=5, pady=5, sticky="e")
@@ -77,6 +90,13 @@ class JanelaOTs:
             row=2, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
     def criar_lista(self):
+        # Pesquisa rápida por texto sobre a lista que está a ser mostrada (qualquer
+        # coluna: matrícula/viatura, estado, datas...). É diferente dos filtros acima:
+        # esses vão à base de dados, esta só esconde linhas já carregadas e por isso
+        # responde enquanto se escreve.
+        self.pesquisa = PesquisaTabela(self.raiz, self.mostrar_contagem)
+        self.pesquisa.quadro.pack(fill="x", padx=10, pady=(5, 0))
+
         quadro = ttk.Frame(self.raiz)
         quadro.pack(fill="x", padx=10, pady=5)
 
@@ -99,6 +119,7 @@ class JanelaOTs:
         self.lista.configure(yscrollcommand=barra.set)
         self.lista.pack(side="left", fill="x", expand=True)
         barra.pack(side="right", fill="y")
+        self.pesquisa.associar(self.lista)
 
         self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar_ot)
 
@@ -120,18 +141,24 @@ class JanelaOTs:
 
         ttk.Label(acoes, text="Data de saída (ao entregar):").grid(
             row=0, column=2, padx=(15, 5), sticky="e")
-        self.entrada_data_saida = ttk.Entry(acoes, width=11)
+        self.entrada_data_saida = tk.Entry(acoes, width=11)
         self.entrada_data_saida.grid(row=0, column=3, padx=5)
+        preparar_campo(self.entrada_data_saida)
         self.escrever(self.entrada_data_saida, date.today().isoformat())
 
         ttk.Button(acoes, text="Mudar estado",
                    command=self.mudar_estado).grid(row=0, column=4, padx=(10, 5))
 
         ttk.Label(acoes, text="Técnico (id):").grid(row=0, column=5, padx=(30, 5), sticky="e")
-        self.entrada_tecnico = ttk.Entry(acoes, width=6)
+        self.entrada_tecnico = tk.Entry(acoes, width=6)
         self.entrada_tecnico.grid(row=0, column=6, padx=5)
+        preparar_campo(self.entrada_tecnico)
         ttk.Button(acoes, text="Atribuir técnico",
                    command=self.atribuir_tecnico).grid(row=0, column=7, padx=5)
+
+        # Abre uma janela com todos os dados da OT selecionada.
+        ttk.Button(acoes, text="Ver Detalhe",
+                   command=self.abrir_detalhe_ot).grid(row=0, column=8, padx=10)
 
         # Linhas da OT (RF04): painel próprio, definido em linha_ot_view.py
         self.painel_linhas = PainelLinhasOT(quadro, self.controller_linhas,
@@ -179,6 +206,44 @@ class JanelaOTs:
             return None
         return self.id_ot_atual
 
+    # Exporta para CSV as Ordens de Trabalho apresentadas na tabela.
+    def exportar_csv(self):
+        # Define a pasta docs na raiz do projeto.
+        pasta_docs = Path(__file__).resolve().parents[2] / "docs"
+        pasta_docs.mkdir(parents=True, exist_ok=True)
+
+        # Cria um nome com data e hora para evitar substituir ficheiros.
+        data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+        caminho = pasta_docs / f"ordens_trabalho_{data_hora}.csv"
+
+        # Define os cabeçalhos do ficheiro CSV.
+        cabecalho = [
+            "OT", "Viatura", "Técnico", "Entrada",
+            "Saída prevista", "Saída real", "Estado", "Custo (€)"
+        ]
+
+        try:
+            # Escreve os cabeçalhos e os dados da tabela no ficheiro.
+            with open(caminho, "w", newline="", encoding="utf-8-sig") as ficheiro:
+                escritor = csv.writer(ficheiro, delimiter=";")
+                escritor.writerow(cabecalho)
+
+                for item in self.lista.get_children():
+                    valores = self.lista.item(item, "values")
+                    escritor.writerow(valores)
+
+        except OSError as erro:
+            messagebox.showerror("Erro", str(erro), parent=self.raiz)
+            return
+
+        # Informa o utilizador de que a exportação foi concluída.
+        messagebox.showinfo(
+            "Exportação concluída",
+            f"Ficheiro CSV criado em:\n{caminho}",
+            parent=self.raiz
+        )
+        self.dizer("Ordens de Trabalho exportadas para CSV.")
+
     # ================= Lista de OTs =================
 
     # Recebe o par (ok, resultado) que o controller devolve
@@ -187,13 +252,20 @@ class JanelaOTs:
         if not ok:
             self.mostrar_erro(dados)
             return
-        for item in self.lista.get_children():
-            self.lista.delete(item)
+        linhas = []
         for ot in dados:
             self.lista.insert("", "end", iid=str(ot.id_ot), values=self.valores_da_ot(ot),
                               tags=tags_linha_alternada(self.lista))
+            linhas.append((str(ot.id_ot), self.valores_da_ot(ot), ()))
+        self.pesquisa.definir_linhas(linhas)
         self.limpar_detalhe()
-        self.dizer(str(len(dados)) + " OT(s) encontrada(s)")
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if self.pesquisa.pesquisa_ativa():
+            self.dizer(str(visiveis) + " de " + str(total) + " OT(s)")
+        else:
+            self.dizer(str(total) + " OT(s) encontrada(s)")
 
     def mostrar_todas(self):
         self.mostrar_lista(self.controller.listar_todas())
@@ -204,17 +276,37 @@ class JanelaOTs:
 
     # RF07
     def pesquisar_historico(self):
-        self.mostrar_lista(self.controller.historico_por_matricula(
-            self.entrada_matricula.get()))
+        matricula = self.entrada_matricula.get().strip()
+        if not matricula:
+            mostrar_erro(self.raiz, "Validação", "Indique a matrícula da viatura.")
+            marcar_erro(self.entrada_matricula)
+            return
+        self.mostrar_lista(self.controller.historico_por_matricula(matricula))
 
     def ao_enter_matricula(self, evento):
         self.pesquisar_historico()
 
     # RF12
     def pesquisar_filtros(self):
+        erros = []
+        for rotulo, entrada in (("Data inicial", self.entrada_data_de), ("Data final", self.entrada_data_ate)):
+            valor = entrada.get().strip()
+            if valor:
+                try:
+                    datetime.strptime(valor, "%Y-%m-%d")
+                except ValueError:
+                    erros.append(rotulo + " deve estar no formato AAAA-MM-DD.")
+                    marcar_erro(entrada)
+        tecnico = self.entrada_filtro_tecnico.get().strip()
+        if tecnico and not tecnico.isdigit():
+            erros.append("O ID do técnico deve conter apenas números.")
+            marcar_erro(self.entrada_filtro_tecnico)
+        if erros:
+            mostrar_erro(self.raiz, "Erro de validação", "\n".join(erros))
+            return
         self.mostrar_lista(self.controller.pesquisar(
             self.entrada_data_de.get(), self.entrada_data_ate.get(),
-            self.combo_filtro_estado.get(), self.entrada_filtro_tecnico.get()))
+            self.combo_filtro_estado.get(), tecnico))
 
     def ao_selecionar_ot(self, evento):
         selecionadas = self.lista.selection()
@@ -251,8 +343,9 @@ class JanelaOTs:
         self.escrever(self.entrada_tecnico, ot.id_tecnico)
         self.label_custo.config(text="Custo total: " + str(round(ot.custo_total, 2)) + " €")
 
-        if self.lista.exists(str(id_ot)):
-            self.lista.item(str(id_ot), values=self.valores_da_ot(ot))
+        # Atualiza a linha na lista guardada e na tabela (se estiver visível), para a
+        # pesquisa não voltar a mostrar valores antigos (ex.: o estado anterior)
+        self.pesquisa.atualizar_linha(str(id_ot), self.valores_da_ot(ot))
         return True
 
     # Mostra a OT e também as suas linhas
@@ -273,8 +366,16 @@ class JanelaOTs:
         id_ot = self.ot_selecionada()
         if id_ot is None:
             return
+        data_saida = self.entrada_data_saida.get().strip()
+        if data_saida:
+            try:
+                datetime.strptime(data_saida, "%Y-%m-%d")
+            except ValueError:
+                marcar_erro(self.entrada_data_saida)
+                mostrar_erro(self.raiz, "Erro de validação", "A data de saída deve estar no formato AAAA-MM-DD.")
+                return
         ok, resultado = self.controller.mudar_estado(
-            id_ot, self.combo_estado.get(), self.entrada_data_saida.get())
+            id_ot, self.combo_estado.get(), data_saida)
         if not ok:
             self.mostrar_erro(resultado)
             self.carregar_detalhe(id_ot)  # volta a mostrar o estado verdadeiro
@@ -287,13 +388,166 @@ class JanelaOTs:
         id_ot = self.ot_selecionada()
         if id_ot is None:
             return
-        ok, resultado = self.controller.atribuir_tecnico(id_ot, self.entrada_tecnico.get())
+        tecnico = self.entrada_tecnico.get().strip()
+        if not tecnico.isdigit() or int(tecnico) < 1:
+            marcar_erro(self.entrada_tecnico)
+            mostrar_erro(self.raiz, "Erro de validação", "O ID do técnico deve ser um número inteiro positivo.")
+            return
+        ok, resultado = self.controller.atribuir_tecnico(id_ot, tecnico)
         if not ok:
             self.mostrar_erro(resultado)
             self.carregar_detalhe(id_ot)
             return
         self.carregar_detalhe(id_ot)
         self.dizer("Técnico da OT " + str(id_ot) + " alterado para " + str(resultado.id_tecnico))
+
+    # Cria uma linha com o nome do campo e o respetivo valor.
+    def criar_campo_detalhe(self, quadro, titulo, valor, linha, coluna):
+        ttk.Label(quadro, text=titulo + ":", font=("TkDefaultFont", 9, "bold")).grid(
+            row=linha, column=coluna, padx=8, pady=5, sticky="e"
+        )
+
+        ttk.Label(quadro, text=str(valor) if valor is not None else "-",
+                  wraplength=350, justify="left").grid(
+            row=linha, column=coluna + 1, padx=8, pady=5, sticky="w"
+        )
+
+    # Abre uma janela com os dados completos da OT selecionada.
+    def abrir_detalhe_ot(self):
+        id_ot = self.ot_selecionada()
+
+        if id_ot is None:
+            return
+
+        # Obtém os dados da OT através do controller.
+        ok, detalhe = self.controller.obter_detalhe_ot(id_ot)
+
+        if not ok:
+            self.mostrar_erro(detalhe)
+            return
+
+        # Obtém as linhas associadas à OT.
+        ok, linhas = self.controller_linhas.listar_linhas(id_ot)
+
+        if not ok:
+            self.mostrar_erro(linhas)
+            return
+
+        # Cria a janela secundária.
+        janela = tk.Toplevel(self.raiz)
+        janela.title("Detalhe da Ordem de Trabalho " + str(id_ot))
+        janela.geometry("850x700")
+        janela.transient(self.raiz)
+        janela.protocol("WM_DELETE_WINDOW", janela.destroy)
+
+        # Dados gerais da Ordem de Trabalho.
+        quadro_ot = ttk.LabelFrame(janela, text="Ordem de Trabalho")
+        quadro_ot.pack(fill="x", padx=10, pady=8)
+
+        self.criar_campo_detalhe(quadro_ot, "N.º OT", detalhe["id_ot"], 0, 0)
+        self.criar_campo_detalhe(quadro_ot, "Estado", detalhe["estado"], 0, 2)
+        self.criar_campo_detalhe(quadro_ot, "Data de entrada", detalhe["data_entrada"], 1, 0)
+        self.criar_campo_detalhe(quadro_ot, "Saída prevista", detalhe["data_prev_saida"], 1, 2)
+        self.criar_campo_detalhe(quadro_ot, "Saída real", detalhe["data_saida_real"], 2, 0)
+        self.criar_campo_detalhe(
+            quadro_ot, "Custo total", str(round(detalhe["custo_total"], 2)) + " €", 2, 2
+        )
+
+        # Informação do cliente associado à viatura.
+        quadro_cliente = ttk.LabelFrame(janela, text="Cliente")
+        quadro_cliente.pack(fill="x", padx=10, pady=5)
+
+        self.criar_campo_detalhe(quadro_cliente, "ID", detalhe["id_cliente"], 0, 0)
+        self.criar_campo_detalhe(quadro_cliente, "Nome", detalhe["nome_cliente"], 0, 2)
+        self.criar_campo_detalhe(quadro_cliente, "NIF", detalhe["nif_cliente"], 1, 0)
+        self.criar_campo_detalhe(quadro_cliente, "Telefone", detalhe["telefone_cliente"], 1, 2)
+        self.criar_campo_detalhe(quadro_cliente, "Email", detalhe["email_cliente"], 2, 0)
+        self.criar_campo_detalhe(quadro_cliente, "Morada", detalhe["morada_cliente"], 2, 2)
+
+        # Informação da viatura associada à OT.
+        quadro_viatura = ttk.LabelFrame(janela, text="Viatura")
+        quadro_viatura.pack(fill="x", padx=10, pady=5)
+
+        self.criar_campo_detalhe(quadro_viatura, "ID", detalhe["id_viatura"], 0, 0)
+        self.criar_campo_detalhe(quadro_viatura, "Matrícula", detalhe["matricula"], 0, 2)
+        self.criar_campo_detalhe(quadro_viatura, "Marca", detalhe["marca"], 1, 0)
+        self.criar_campo_detalhe(quadro_viatura, "Modelo", detalhe["modelo"], 1, 2)
+        self.criar_campo_detalhe(quadro_viatura, "Ano", detalhe["ano"], 2, 0)
+        self.criar_campo_detalhe(quadro_viatura, "Cor", detalhe["cor"], 2, 2)
+        self.criar_campo_detalhe(quadro_viatura, "KM à entrada", detalhe["km_entrada"], 3, 0)
+
+        # Informação do técnico responsável pela OT.
+        quadro_tecnico = ttk.LabelFrame(janela, text="Técnico")
+        quadro_tecnico.pack(fill="x", padx=10, pady=5)
+
+        nome_tecnico = detalhe["nome_tecnico"] or "Não atribuído"
+        especialidade = detalhe["especialidade"] or "-"
+        custo_hora = detalhe["custo_hora"]
+
+        self.criar_campo_detalhe(quadro_tecnico, "ID", detalhe["id_tecnico"], 0, 0)
+        self.criar_campo_detalhe(quadro_tecnico, "Nome", nome_tecnico, 0, 2)
+        self.criar_campo_detalhe(quadro_tecnico, "Especialidade", especialidade, 1, 0)
+        self.criar_campo_detalhe(
+            quadro_tecnico, "Custo por hora",
+            str(custo_hora) + " €" if custo_hora is not None else "-", 1, 2
+        )
+
+        # Apresenta a descrição da avaria.
+        quadro_avaria = ttk.LabelFrame(janela, text="Descrição da Avaria")
+        quadro_avaria.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(
+            quadro_avaria,
+            text=detalhe["descricao_avaria"] or "-",
+            wraplength=800,
+            justify="left"
+        ).pack(anchor="w", padx=8, pady=8)
+
+        # Apresenta as peças e os serviços registados na OT.
+        quadro_linhas = ttk.LabelFrame(janela, text="Peças e Serviços")
+        quadro_linhas.pack(fill="both", expand=True, padx=10, pady=5)
+
+        colunas = ("id", "tipo", "descricao", "quantidade", "horas", "preco", "peca", "subtotal")
+
+        tabela = ttk.Treeview(
+            quadro_linhas, columns=colunas, show="headings", height=6
+        )
+
+        titulos = [
+            ("id", "Linha", 55),
+            ("tipo", "Tipo", 80),
+            ("descricao", "Descrição", 220),
+            ("quantidade", "Qtd.", 55),
+            ("horas", "Horas", 65),
+            ("preco", "Preço unit.", 90),
+            ("peca", "ID Peça", 70),
+            ("subtotal", "Subtotal", 90)
+        ]
+
+        for coluna, titulo, largura in titulos:
+            tabela.heading(coluna, text=titulo)
+            tabela.column(coluna, width=largura, anchor="center")
+
+        tabela.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Insere cada linha da OT na tabela de detalhe.
+        for linha in linhas:
+            tabela.insert("", "end", values=(
+                linha.id_linha,
+                linha.tipo,
+                linha.descricao,
+                linha.quantidade,
+                self.texto(linha.horas_trabalhadas),
+                str(linha.preco_unitario) + " €",
+                self.texto(linha.id_peca),
+                str(round(linha.subtotal(), 2)) + " €"
+            ))
+
+        if len(linhas) == 0:
+            tabela.insert("", "end", values=("", "", "Sem peças ou serviços registados", "", "", "", "", ""))
+
+        # Botão para fechar a janela de detalhe.
+        ttk.Button(janela, text="Fechar", command=janela.destroy).pack(pady=10)
 
     # ================= Nova OT =================
 
@@ -302,6 +556,9 @@ class JanelaOTs:
 
     # Chamado pelo diálogo quando a OT foi criada
     def ao_criar_ot(self, ot):
+        # Limpa a pesquisa primeiro: se houvesse texto escrito, a OT nova podia ficar
+        # escondida e o selection_set abaixo falhava por a linha não existir
+        self.pesquisa.limpar()
         self.mostrar_todas()
         self.lista.selection_set(str(ot.id_ot))
         self.lista.see(str(ot.id_ot))
@@ -321,30 +578,36 @@ class DialogoNovaOT:
         self.janela.transient(janela_pai)
         self.janela.wait_visibility()  # no Linux, o grab só funciona com a janela já visível
         self.janela.grab_set()  # enquanto está aberta, só se mexe nesta janela
+        self.janela.protocol("WM_DELETE_WINDOW", self.janela.destroy)
 
         hoje = date.today().isoformat()
 
         ttk.Label(self.janela, text="ID da viatura:").grid(row=0, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_viatura = ttk.Entry(self.janela, width=10)
+        self.entrada_viatura = tk.Entry(self.janela, width=10)
         self.entrada_viatura.grid(row=0, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_viatura)
 
         ttk.Label(self.janela, text="ID do técnico:").grid(row=1, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_tecnico = ttk.Entry(self.janela, width=10)
+        self.entrada_tecnico = tk.Entry(self.janela, width=10)
         self.entrada_tecnico.grid(row=1, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_tecnico)
 
         ttk.Label(self.janela, text="Data de entrada:").grid(row=2, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_data_entrada = ttk.Entry(self.janela, width=12)
+        self.entrada_data_entrada = tk.Entry(self.janela, width=12)
         self.entrada_data_entrada.grid(row=2, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_data_entrada)
         self.entrada_data_entrada.insert(0, hoje)
 
         ttk.Label(self.janela, text="Data prevista de saída:").grid(row=3, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_data_prevista = ttk.Entry(self.janela, width=12)
+        self.entrada_data_prevista = tk.Entry(self.janela, width=12)
         self.entrada_data_prevista.grid(row=3, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_data_prevista)
         self.entrada_data_prevista.insert(0, hoje)
 
         ttk.Label(self.janela, text="Descrição da avaria:").grid(row=4, column=0, padx=10, pady=6, sticky="e")
-        self.entrada_descricao = ttk.Entry(self.janela, width=45)
+        self.entrada_descricao = tk.Entry(self.janela, width=45)
         self.entrada_descricao.grid(row=4, column=1, padx=10, pady=6, sticky="w")
+        preparar_campo(self.entrada_descricao)
 
         ttk.Label(self.janela, text="Datas no formato AAAA-MM-DD").grid(
             row=5, column=1, padx=10, sticky="w")
@@ -362,6 +625,25 @@ class DialogoNovaOT:
         self.entrada_viatura.focus_set()
 
     def criar(self):
+        erros = validar_campos({
+            "ID da viatura": {"valor": self.entrada_viatura.get(), "tipo": "inteiro"},
+            "ID do técnico": {"valor": self.entrada_tecnico.get(), "tipo": "inteiro"},
+            "Data de entrada": self.entrada_data_entrada.get(),
+            "Data prevista de saída": self.entrada_data_prevista.get(),
+            "Descrição da avaria": self.entrada_descricao.get(),
+        })
+        for rotulo, entrada in (("Data de entrada", self.entrada_data_entrada), ("Data prevista de saída", self.entrada_data_prevista)):
+            try:
+                datetime.strptime(entrada.get().strip(), "%Y-%m-%d")
+            except ValueError:
+                erros.append(rotulo + " deve estar no formato AAAA-MM-DD.")
+                marcar_erro(entrada)
+        if erros:
+            for entrada in (self.entrada_viatura, self.entrada_tecnico, self.entrada_descricao):
+                if not entrada.get().strip():
+                    marcar_erro(entrada)
+            mostrar_erro(self.janela, "Erro de validação", "\n".join(erros))
+            return
         ok, resultado = self.controller.criar_ot(
             self.entrada_viatura.get(), self.entrada_tecnico.get(),
             self.entrada_data_entrada.get(), self.entrada_data_prevista.get(),

@@ -1,8 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
-
-from src.views.estilo import executar_acao, perguntar_sim_nao
 from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.views.estilo import (
+    executar_acao, perguntar_sim_nao, PesquisaTabela, marcar_erro, preparar_campo
+)
+from src.services.validacao import validar_campos
 
 
 class TecnicoView(ttk.Frame):
@@ -38,10 +40,13 @@ class TecnicoView(ttk.Frame):
         rotulos = [("nome", "Nome *"), ("especialidade", "Especialidade"),
                    ("custo_hora", "Custo/hora (€) *")]
         linha = 0
+        self.entradas = {}
         for chave, rotulo in rotulos:
             ttk.Label(self, text=rotulo).grid(row=linha, column=0, sticky="w", pady=3)
-            ttk.Entry(self, textvariable=self.campos[chave]).grid(
-                row=linha, column=1, sticky="ew", padx=8)
+            entrada = tk.Entry(self, textvariable=self.campos[chave])
+            entrada.grid(row=linha, column=1, sticky="ew", padx=8)
+            preparar_campo(entrada)
+            self.entradas[chave] = entrada
             linha += 1
         ttk.Checkbutton(self, text="Ativo", variable=self.ativo).grid(
             row=3, column=1, sticky="w")
@@ -63,7 +68,11 @@ class TecnicoView(ttk.Frame):
         quadro = ttk.Frame(self)
         quadro.grid(row=5, column=0, columnspan=2, sticky="nsew")
         quadro.columnconfigure(0, weight=1)
-        quadro.rowconfigure(0, weight=1)
+        # Barra de pesquisa por cima da lista, dentro do mesmo quadro: assim não
+        # mexe nas linhas do formulário que ficam acima (a lista passa para a linha 1)
+        quadro.rowconfigure(1, weight=1)
+        self.pesquisa = PesquisaTabela(quadro, self.mostrar_contagem)
+        self.pesquisa.quadro.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         colunas = [("id", "ID"), ("nome", "Nome"), ("especialidade", "Especialidade"),
                    ("custo_hora", "Custo/hora (€)"), ("ativo", "Ativo")]
@@ -77,10 +86,11 @@ class TecnicoView(ttk.Frame):
         for nome, titulo in colunas:
             self.lista.heading(nome, text=titulo)
             self.lista.column(nome, width=140, minwidth=60)
-        self.lista.grid(row=0, column=0, sticky="nsew")
+        self.lista.grid(row=1, column=0, sticky="nsew")
+        self.pesquisa.associar(self.lista)
 
         barra = ttk.Scrollbar(quadro, orient="vertical", command=self.lista.yview)
-        barra.grid(row=0, column=1, sticky="ns")
+        barra.grid(row=1, column=1, sticky="ns")
         self.lista.configure(yscrollcommand=barra.set)
         self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar)
 
@@ -110,7 +120,7 @@ class TecnicoView(ttk.Frame):
 
     def carregar(self):
         tecnicos = self.controller.listar(self.apenas_ativos.get())
-        self.lista.delete(*self.lista.get_children())
+        linhas = []
         for tecnico in tecnicos:
             if tecnico.ativo:
                 ativo = "Sim"
@@ -124,9 +134,20 @@ class TecnicoView(ttk.Frame):
                 tecnico.id_tecnico, tecnico.nome, especialidade,
                 round(tecnico.custo_hora, 2), ativo),
                 tags=tags_linha_alternada(self.lista))
+            valores = (tecnico.id_tecnico, tecnico.nome, especialidade,
+                       round(tecnico.custo_hora, 2), ativo)
+            linhas.append((str(tecnico.id_tecnico), valores, ()))
+        # A lista completa fica na PesquisaTabela; a tabela mostra só o que passa no filtro
+        self.pesquisa.definir_linhas(linhas)
         self.novo()
-        self.estado.set(str(len(tecnicos))
-                        + " técnico(s). Selecione uma linha para editar.")
+        self.mostrar_contagem(len(self.lista.get_children()), len(tecnicos))
+
+    # Chamada pela PesquisaTabela sempre que a tabela é filtrada
+    def mostrar_contagem(self, visiveis, total):
+        if self.pesquisa.pesquisa_ativa():
+            self.estado.set(str(visiveis) + " de " + str(total) + " técnico(s).")
+        else:
+            self.estado.set(str(total) + " técnico(s). Selecione uma linha para editar.")
 
     def ao_selecionar(self, evento):
         if self.lista.selection():
@@ -145,9 +166,26 @@ class TecnicoView(ttk.Frame):
         self.estado.set("A editar o técnico " + str(tecnico.id_tecnico) + ".")
 
     def guardar(self):
-        dados = {}
-        for chave in self.campos:
-            dados[chave] = self.campos[chave].get()
+        dados = {chave: self.campos[chave].get().strip() for chave in self.campos}
+        erros = validar_campos({
+            "Nome": dados["nome"],
+            "Custo/hora": {"valor": dados["custo_hora"], "tipo": "decimal"},
+        })
+        try:
+            if float(dados["custo_hora"].replace(",", ".")) < 0:
+                erros.append("Custo/hora não pode ser negativo.")
+        except ValueError:
+            pass   # já foi apanhado pelo validar_campos
+        if len(erros) > 0:
+            # Pinta o campo de cada erro (a mensagem começa pelo nome do campo)
+            for erro in erros:
+                if erro.startswith("Nome "):
+                    marcar_erro(self.entradas["nome"])
+                if erro.startswith("Custo/hora "):
+                    marcar_erro(self.entradas["custo_hora"])
+            # ValueError em vez de messagebox aqui: o executar_acao mostra o aviso
+            # (igual aos outros erros) e os testes que chamam guardar() não bloqueiam
+            raise ValueError("\n".join(erros))
         tecnico = self.controller.guardar(dados, self.ativo.get(), self.id_selecionado)
         self.carregar()
         self.estado.set("Técnico " + str(tecnico.id_tecnico) + " guardado.")
