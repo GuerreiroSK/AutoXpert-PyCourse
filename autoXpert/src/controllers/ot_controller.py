@@ -49,6 +49,14 @@ class OrdemTrabalhoController(OtsBaseController):
         except (ValueError, sqlite3.Error) as erro:
             return False, self._texto_do_erro(erro)
 
+    # Obtém os dados completos de uma OT para apresentar na janela de detalhe.
+    def obter_detalhe_ot(self, id_ot):
+        try:
+            detalhe = self.service.obter_detalhe_ot(id_ot)
+            return True, detalhe
+        except (ValueError, sqlite3.Error) as erro:
+            return False, self._texto_do_erro(erro)
+
     # RF06: se o novo estado for "Entregue", a data de saída real pode vir vazia
     # (o service usa a data de hoje)
     def mudar_estado(self, id_ot, novo_estado, data_saida_real=""):

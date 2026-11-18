@@ -35,6 +35,7 @@ def criar_janela(pai, titulo, largura, altura):
     janela = tk.Toplevel(pai)
     janela.title(titulo)
     janela.configure(background=COR_FUNDO)
+    janela.protocol("WM_DELETE_WINDOW", janela.destroy)
     x = pai.winfo_rootx() + 60
     y = pai.winfo_rooty() + 40
     janela.geometry(str(largura) + "x" + str(altura) + "+" + str(x) + "+" + str(y))
@@ -191,6 +192,8 @@ class DialogoFormulario:
         self.janela.configure(background=COR_FUNDO)
         self.janela.transient(pai)
         self.janela.resizable(False, False)
+        # Fecha apenas o formulário quando o utilizador carrega na cruz.
+        self.janela.protocol("WM_DELETE_WINDOW", self.cancelar)
 
         corpo = ttk.Frame(self.janela, padding=15)
         corpo.pack()

@@ -63,6 +63,52 @@ class OrdemTrabalhoRepository:
             return None
         return lista[0]
 
+    # Obtém todos os dados da OT, incluindo os dados do cliente, da viatura e do técnico.
+    def obter_detalhe_por_id(self, id_ot):
+        sql = """
+            SELECT
+                o.id_ot,
+                o.data_entrada,
+                o.data_prev_saida,
+                o.data_saida_real,
+                o.estado,
+                o.descricao_avaria,
+                o.custo_total,
+
+                v.id_viatura,
+                v.matricula,
+                v.marca,
+                v.modelo,
+                v.ano,
+                v.cor,
+                v.km_entrada,
+
+                c.id_cliente,
+                c.nome AS nome_cliente,
+                c.NIF AS nif_cliente,
+                c.telefone AS telefone_cliente,
+                c.email AS email_cliente,
+                c.morada AS morada_cliente,
+
+                o.id_tecnico,
+                t.nome AS nome_tecnico,
+                t.especialidade,
+                t.custo_hora
+
+            FROM OrdemTrabalho o
+            JOIN Viatura v ON o.id_viatura = v.id_viatura
+            JOIN Cliente c ON v.id_cliente = c.id_cliente
+            LEFT JOIN Tecnico t ON o.id_tecnico = t.id_tecnico
+            WHERE o.id_ot = ?
+        """
+
+        linha = self.conexao.execute(sql, (id_ot,)).fetchone()
+
+        if linha is None:
+            return None
+
+        return dict(linha)
+
     # Atualiza todos os campos da OT; devolve True se a OT existia
     def atualizar(self, ot):
         cursor = self.conexao.cursor()

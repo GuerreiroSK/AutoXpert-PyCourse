@@ -23,7 +23,12 @@ class LinhaOT:
     # Calcular o subtotal da linha, considerando mão de obra ou peças
     def subtotal(self):
         if self.tipo == LinhaOT.TIPO_MAO_OBRA:
-            valor = self.horas_trabalhadas * self.preco_unitario
+            horas = self.horas_trabalhadas
+
+            if horas is None:
+                horas = self.quantidade
+
+            valor = horas * self.preco_unitario
 
         elif self.tipo == LinhaOT.TIPO_PECA:
             valor = self.quantidade * self.preco_unitario
