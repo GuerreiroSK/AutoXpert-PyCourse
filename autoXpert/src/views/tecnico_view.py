@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.views.tema import configurar_linhas_alternadas
 from src.views.estilo import (
     executar_acao, perguntar_sim_nao, PesquisaTabela, marcar_erro, preparar_campo
 )
@@ -130,10 +130,6 @@ class TecnicoView(ttk.Frame):
                 especialidade = ""
             else:
                 especialidade = tecnico.especialidade
-            self.lista.insert("", "end", iid=str(tecnico.id_tecnico), values=(
-                tecnico.id_tecnico, tecnico.nome, especialidade,
-                round(tecnico.custo_hora, 2), ativo),
-                tags=tags_linha_alternada(self.lista))
             valores = (tecnico.id_tecnico, tecnico.nome, especialidade,
                        round(tecnico.custo_hora, 2), ativo)
             linhas.append((str(tecnico.id_tecnico), valores, ()))

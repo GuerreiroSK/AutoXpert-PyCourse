@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import unicodedata
 import tkinter as tk
@@ -20,7 +21,47 @@ def aplicar_estilo(raiz):
 
 # ================= Janelas e blocos comuns =================
 
-# Cria uma janela nova, um pouco deslocada em relação à janela de onde foi aberta
+# Espaço que o sistema ocupa no ecrã (barra de título da janela + barra de tarefas).
+# Serve para uma janela nunca ser maior do que aquilo que realmente se vê.
+MARGEM_LARGURA_ECRA = 20
+MARGEM_ALTURA_ECRA = 90
+
+
+# Põe a janela com o tamanho certo para o conteúdo que já tem, igual em todas as páginas.
+#
+# Porquê: antes cada janela tinha um tamanho escrito "à mão" (ex.: 1180x850). Se o
+# conteúdo precisasse de mais altura (889), os botões e a barra de baixo ficavam
+# cortados e só apareciam ao aumentar a janela. Agora o tamanho final é:
+#   - nunca menor do que o conteúdo precisa (winfo_reqwidth/reqheight);
+#   - nunca maior do que o ecrã (senão os botões ficavam fora do ecrã);
+#   - com um tamanho mínimo, para não se poder encolher até esconder os botões.
+# Chamar DEPOIS de o conteúdo estar construído.
+def ajustar_janela(janela, largura, altura):
+    janela.update_idletasks()
+    ecra_l = janela.winfo_screenwidth()
+    ecra_a = janela.winfo_screenheight()
+    precisa_l = janela.winfo_reqwidth()
+    precisa_a = janela.winfo_reqheight()
+
+    nova_l = min(max(largura, precisa_l), ecra_l - MARGEM_LARGURA_ECRA)
+    nova_a = min(max(altura, precisa_a), ecra_a - MARGEM_ALTURA_ECRA)
+
+    # Mantém a posição em que a janela foi aberta, mas puxa-a para dentro do ecrã
+    x, y = 0, 0
+    posicao = re.search(r"\+(-?\d+)\+(-?\d+)$", janela.geometry())
+    if posicao is not None:
+        x, y = int(posicao.group(1)), int(posicao.group(2))
+    x = max(0, min(x, ecra_l - nova_l))
+    y = max(0, min(y, ecra_a - nova_a - 60))
+
+    janela.geometry(str(nova_l) + "x" + str(nova_a) + "+" + str(x) + "+" + str(y))
+    janela.minsize(min(precisa_l, nova_l), min(precisa_a, nova_a))
+
+
+# Cria uma janela nova, um pouco deslocada em relação à janela de onde foi aberta.
+# largura/altura são só o tamanho de partida: assim que o conteúdo estiver montado
+# (after_idle corre depois de a view terminar de construir a janela) o tamanho é
+# corrigido por ajustar_janela, para nunca cortar nada.
 def criar_janela(pai, titulo, largura, altura):
     janela = tk.Toplevel(pai)
     janela.title(titulo)
@@ -29,7 +70,14 @@ def criar_janela(pai, titulo, largura, altura):
     x = pai.winfo_rootx() + 60
     y = pai.winfo_rooty() + 40
     janela.geometry(str(largura) + "x" + str(altura) + "+" + str(x) + "+" + str(y))
+    janela.after_idle(lambda: _ajustar_se_existir(janela, largura, altura))
     return janela
+
+
+# A janela pode ter sido fechada antes de o after_idle correr
+def _ajustar_se_existir(janela, largura, altura):
+    if janela.winfo_exists():
+        ajustar_janela(janela, largura, altura)
 
 
 # Faixa azul com o título do módulo, no topo de cada janela
@@ -116,10 +164,14 @@ def filtrar_tabela(tabela, linhas, termo):
     visiveis = 0
     for iid, valores, etiquetas in linhas:
         if termo_normalizado == "" or linha_contem(valores, termo_normalizado):
+            # As cores alternadas (par/ímpar) são calculadas AQUI, a cada filtro, e não
+            # nas views: depois de filtrar, a 1.ª linha visível tem de ser "par" outra
+            # vez. As views só passam as suas etiquetas (ex.: stock baixo).
+            cores = tags_linha_alternada(tabela, etiquetas)
             if iid is None:
-                tabela.insert("", "end", values=valores, tags=etiquetas)
+                tabela.insert("", "end", values=valores, tags=cores)
             else:
-                tabela.insert("", "end", iid=iid, values=valores, tags=etiquetas)
+                tabela.insert("", "end", iid=iid, values=valores, tags=cores)
             visiveis = visiveis + 1
     return visiveis
 
@@ -259,8 +311,6 @@ def mostrar_tabela(pai, titulo, colunas, linhas, largura, altura):
 
     linhas_completas = []
     for linha in linhas:
-        tabela.insert("", "end", values=linha,
-                      tags=tags_linha_alternada(tabela))
         linhas_completas.append((None, linha, ()))
     pesquisa.definir_linhas(linhas_completas)
 

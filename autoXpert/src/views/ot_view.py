@@ -6,9 +6,10 @@ from pathlib import Path
 
 
 from src.views.linha_ot_view import PainelLinhasOT
-from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.views.tema import configurar_linhas_alternadas
 from src.views.estilo import (
-    criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela, marcar_erro, preparar_campo
+    criar_cabecalho, mostrar_erro, mostrar_info, PesquisaTabela, marcar_erro, preparar_campo,
+    ajustar_janela
 )
 from src.services.validacao import validar_campos
 
@@ -27,20 +28,27 @@ class JanelaOTs:
         self.id_ot_atual = None  # OT que está selecionada na lista
 
         self.raiz.title("AutoXpert - Ordens de Trabalho")
-        self.raiz.geometry("1180x850")
+        self.raiz.geometry("1180x700+60+40")
 
         criar_cabecalho(self.raiz, "Ordens de Trabalho")
+        # A barra de mensagens é criada ANTES do resto. Porquê: o pack() dá o espaço
+        # por ordem; o que for criado primeiro com side="bottom" fica sempre visível
+        # e é a parte do meio (tabelas) que encolhe se o ecrã for pequeno.
+        self.criar_barra_de_mensagens()
         self.criar_pesquisa()
         self.criar_lista()
         self.criar_detalhe()
-        self.criar_barra_de_mensagens()
+
+        # Tamanho certo para o conteúdo (igual ao das outras janelas): sem cortar os
+        # botões de baixo e sem passar do tamanho do ecrã.
+        ajustar_janela(self.raiz, 1180, 700)
 
         self.mostrar_lista(self.controller.listar_todas())
 
     # ================= Construção da janela =================
 
     def criar_pesquisa(self):
-        quadro = ttk.LabelFrame(self.raiz, text="Pesquisa")
+        quadro = ttk.LabelFrame(self.raiz, text="Pesquisa  (datas no formato AAAA-MM-DD)")
         quadro.pack(fill="x", padx=10, pady=(10, 5))
         quadro.columnconfigure(8, weight=1)  # a coluna 8 absorve o espaço livre à direita
 
@@ -86,8 +94,6 @@ class JanelaOTs:
         ttk.Button(quadro, text="Filtrar",
                    command=self.pesquisar_filtros).grid(row=1, column=8, padx=5, pady=5, sticky="e")
 
-        ttk.Label(quadro, text="Datas no formato AAAA-MM-DD").grid(
-            row=2, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
     def criar_lista(self):
         # Pesquisa rápida por texto sobre a lista que está a ser mostrada (qualquer
@@ -109,7 +115,7 @@ class JanelaOTs:
             nomes.append(coluna[0])
 
         self.lista = ttk.Treeview(quadro, columns=nomes, show="headings",
-                                  height=7, selectmode="browse")
+                                  height=5, selectmode="browse")
         configurar_linhas_alternadas(self.lista)
         for nome, titulo, largura in colunas:
             self.lista.heading(nome, text=titulo)
@@ -127,9 +133,16 @@ class JanelaOTs:
         quadro = ttk.LabelFrame(self.raiz, text="OT selecionada")
         quadro.pack(fill="both", expand=True, padx=10, pady=5)
 
-        self.label_resumo = ttk.Label(quadro, text="Nenhuma OT selecionada",
-                                      wraplength=1100, justify="left")
-        self.label_resumo.pack(fill="x", padx=10, pady=(8, 4))
+        # Resumo à esquerda e custo total à direita, na mesma linha: poupa uma linha
+        # de altura, o que ajuda a janela a caber em ecrãs pequenos (ex.: 1366x768).
+        topo = ttk.Frame(quadro)
+        topo.pack(fill="x", padx=10, pady=(8, 4))
+        self.label_custo = ttk.Label(topo, text="Custo total: -",
+                                     font=("TkDefaultFont", 12, "bold"))
+        self.label_custo.pack(side="right", padx=(10, 10))
+        self.label_resumo = ttk.Label(topo, text="Nenhuma OT selecionada",
+                                      wraplength=880, justify="left")
+        self.label_resumo.pack(side="left", fill="x", expand=True)
 
         # Estado (RF06) e técnico (RF05)
         acoes = ttk.Frame(quadro)
@@ -164,10 +177,6 @@ class JanelaOTs:
         self.painel_linhas = PainelLinhasOT(quadro, self.controller_linhas,
                                             self.ao_mudar_linhas)
         self.painel_linhas.quadro.pack(fill="both", expand=True, padx=10, pady=6)
-
-        self.label_custo = ttk.Label(quadro, text="Custo total: -",
-                                     font=("TkDefaultFont", 12, "bold"))
-        self.label_custo.pack(anchor="e", padx=20, pady=(0, 10))
 
     def criar_barra_de_mensagens(self):
         self.mensagem = tk.StringVar()
@@ -254,8 +263,6 @@ class JanelaOTs:
             return
         linhas = []
         for ot in dados:
-            self.lista.insert("", "end", iid=str(ot.id_ot), values=self.valores_da_ot(ot),
-                              tags=tags_linha_alternada(self.lista))
             linhas.append((str(ot.id_ot), self.valores_da_ot(ot), ()))
         self.pesquisa.definir_linhas(linhas)
         self.limpar_detalhe()
@@ -436,9 +443,14 @@ class JanelaOTs:
         # Cria a janela secundária.
         janela = tk.Toplevel(self.raiz)
         janela.title("Detalhe da Ordem de Trabalho " + str(id_ot))
-        janela.geometry("850x700")
+        janela.geometry("850x700+80+50")
         janela.transient(self.raiz)
         janela.protocol("WM_DELETE_WINDOW", janela.destroy)
+
+        # O botão Fechar é criado primeiro e fica fixo no fundo: se o ecrã for pequeno,
+        # é a tabela das linhas que encolhe e o botão nunca desaparece.
+        ttk.Button(janela, text="Fechar", command=janela.destroy).pack(
+            side="bottom", pady=10)
 
         # Dados gerais da Ordem de Trabalho.
         quadro_ot = ttk.LabelFrame(janela, text="Ordem de Trabalho")
@@ -546,8 +558,7 @@ class JanelaOTs:
         if len(linhas) == 0:
             tabela.insert("", "end", values=("", "", "Sem peças ou serviços registados", "", "", "", "", ""))
 
-        # Botão para fechar a janela de detalhe.
-        ttk.Button(janela, text="Fechar", command=janela.destroy).pack(pady=10)
+        ajustar_janela(janela, 850, 700)
 
     # ================= Nova OT =================
 

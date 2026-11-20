@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from src.views.tema import configurar_linhas_alternadas, tags_linha_alternada
+from src.views.tema import configurar_linhas_alternadas
 from src.views.estilo import (
     executar_acao, perguntar_sim_nao, PesquisaTabela, marcar_erro, preparar_campo
 )
@@ -160,11 +160,6 @@ class PecaView(ttk.Frame):
             else:
                 alerta = ""
                 etiquetas = ()
-            self.lista.insert("", "end", iid=str(peca.id_peca), values=(
-                peca.id_peca, peca.referencia, peca.nome, peca.stock_atual,
-                peca.stock_minimo, round(peca.preco_compra, 2),
-                round(peca.preco_venda, 2), alerta),
-                tags=tags_linha_alternada(self.lista, etiquetas))
             valores = (peca.id_peca, peca.referencia, peca.nome, peca.stock_atual,
                        peca.stock_minimo, round(peca.preco_compra, 2),
                        round(peca.preco_venda, 2), alerta)
