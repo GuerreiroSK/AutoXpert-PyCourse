@@ -80,3 +80,15 @@ CREATE TABLE IF NOT EXISTS LogAlteracaoOT (
     valor_anterior TEXT,
     valor_novo TEXT
 );
+
+
+-- Utilizadores da aplicação (login). O nome da tabela e das colunas é o que o PDF do
+-- professor (UFCD 10795) usa, para o código dos 4 elementos do grupo encaixar.
+-- senha_hash: nunca se guarda a palavra-passe, só o hash bcrypt (ver auth.py).
+-- perfil: o CHECK garante na própria base de dados que só existem os 3 perfis.
+CREATE TABLE IF NOT EXISTS utilizadores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    login TEXT NOT NULL UNIQUE,
+    senha_hash TEXT NOT NULL,
+    perfil TEXT NOT NULL CHECK(perfil IN ('administrador', 'tecnico', 'rececionista'))
+);
