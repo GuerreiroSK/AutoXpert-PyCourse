@@ -9,6 +9,7 @@ from src.controllers.linha_ot_controller import LinhaOTController
 from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
 from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
+from tests.auth_testes.token_teste import criar_token_teste
 
 
 class TesteLinhaOTController(unittest.TestCase):
@@ -17,7 +18,8 @@ class TesteLinhaOTController(unittest.TestCase):
     def setUp(self):
         self.conexao = criar_conexao_teste()
         repo_ot = OrdemTrabalhoRepository(self.conexao)
-        log_service = LogAlteracaoOTService(LogAlteracaoOTRepository(self.conexao), repo_ot)
+        log_service = LogAlteracaoOTService(
+            LogAlteracaoOTRepository(self.conexao), repo_ot, criar_token_teste(self))
         ot_service = OrdemTrabalhoService(repo_ot, log_service)
         linha_service = LinhaOTService(LinhaOTRepository(self.conexao), ot_service)
         self.ot_controller = OrdemTrabalhoController(ot_service)

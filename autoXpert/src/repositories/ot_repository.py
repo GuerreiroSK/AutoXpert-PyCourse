@@ -110,7 +110,7 @@ class OrdemTrabalhoRepository:
         return dict(linha)
 
     # Atualiza todos os campos da OT; devolve True se a OT existia
-    def atualizar(self, ot):
+    def atualizar(self, ot, *, confirmar=True):
         cursor = self.conexao.cursor()
         cursor.execute(
             "UPDATE OrdemTrabalho SET id_viatura = ?, id_tecnico = ?, "
@@ -120,7 +120,8 @@ class OrdemTrabalhoRepository:
              ot.data_saida_real, ot.estado, ot.descricao_avaria, ot.custo_total,
              ot.id_ot),
         )
-        self.conexao.commit()
+        if confirmar:
+            self.conexao.commit()
         return cursor.rowcount > 0
 
     # Só funciona se a OT já não tiver linhas (eliminar primeiro as linhas)
@@ -133,21 +134,23 @@ class OrdemTrabalhoRepository:
     # ---------- Alterações pontuais (RF05, RF06, RF13) ----------
 
     # RF06: muda só o estado. As regras de transição ficam no service.
-    def mudar_estado(self, id_ot, novo_estado):
+    def mudar_estado(self, id_ot, novo_estado, *, confirmar=True):
         if novo_estado not in OrdemTrabalho.ESTADOS:
             raise ValueError("Estado inválido: " + str(novo_estado))
         cursor = self.conexao.cursor()
         cursor.execute("UPDATE OrdemTrabalho SET estado = ? WHERE id_ot = ?",
                        (novo_estado, id_ot))
-        self.conexao.commit()
+        if confirmar:
+            self.conexao.commit()
         return cursor.rowcount > 0
 
     # RF05: atribui (ou troca) o técnico responsável
-    def atribuir_tecnico(self, id_ot, id_tecnico):
+    def atribuir_tecnico(self, id_ot, id_tecnico, *, confirmar=True):
         cursor = self.conexao.cursor()
         cursor.execute("UPDATE OrdemTrabalho SET id_tecnico = ? WHERE id_ot = ?",
                        (id_tecnico, id_ot))
-        self.conexao.commit()
+        if confirmar:
+            self.conexao.commit()
         return cursor.rowcount > 0
 
     # RF13: guarda o custo total calculado pelo service a partir das linhas

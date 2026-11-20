@@ -165,7 +165,7 @@ class TestOrdemTrabalhoService(unittest.TestCase):
                 resultado = self.svc.mudar_estado(1, novo)
 
                 self.assertEqual(resultado.estado, novo)
-                self.mock_repo.mudar_estado.assert_called_once_with(1, novo)
+                self.mock_repo.mudar_estado.assert_called_once_with(1, novo, confirmar=False)
 
     def test_data_saida_real_fica_vazia_antes_de_entregue(self):
         self._repo_devolve(self._ot(estado="Em Curso"))
@@ -256,7 +256,7 @@ class TestOrdemTrabalhoService(unittest.TestCase):
         self.svc.mudar_estado(1, "Em Curso")
 
         self.mock_log.registar_alteracao.assert_called_once_with(
-            1, "estado", "Pendente", "Em Curso")
+            1, "estado", "Pendente", "Em Curso", confirmar=False)
 
     def test_entregar_regista_no_log(self):
         self._repo_devolve(self._ot(estado="Concluída"))
@@ -264,7 +264,7 @@ class TestOrdemTrabalhoService(unittest.TestCase):
         self.svc.mudar_estado(1, "Entregue", self.hoje)
 
         self.mock_log.registar_alteracao.assert_called_once_with(
-            1, "estado", "Concluída", "Entregue")
+            1, "estado", "Concluída", "Entregue", confirmar=False)
 
     def test_mudar_para_o_mesmo_estado_nao_regista_no_log(self):
         self._repo_devolve(self._ot(estado="Pendente"))
@@ -286,7 +286,8 @@ class TestOrdemTrabalhoService(unittest.TestCase):
 
         self.svc.atribuir_tecnico(1, 2)
 
-        self.mock_log.registar_alteracao.assert_called_once_with(1, "técnico", "1", "2")
+        self.mock_log.registar_alteracao.assert_called_once_with(
+            1, "técnico", "1", "2", confirmar=False)
 
     def test_atribuir_o_mesmo_tecnico_nao_regista_no_log(self):
         self._repo_devolve(self._ot(id_tecnico=1))
@@ -302,7 +303,7 @@ class TestOrdemTrabalhoService(unittest.TestCase):
 
         resultado = self.svc.atribuir_tecnico(1, 2)
 
-        self.mock_repo.atribuir_tecnico.assert_called_once_with(1, 2)
+        self.mock_repo.atribuir_tecnico.assert_called_once_with(1, 2, confirmar=False)
         self.assertEqual(resultado.id_tecnico, 2)
 
     def test_atribuir_tecnico_casos_invalidos(self):

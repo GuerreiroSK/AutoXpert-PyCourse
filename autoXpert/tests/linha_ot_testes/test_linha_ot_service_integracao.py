@@ -9,6 +9,7 @@ from src.services.linha_ot_service import LinhaOTService
 from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
 from src.services.log_alteracao_ot_service import LogAlteracaoOTService
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
+from tests.auth_testes.token_teste import criar_token_teste
 
 
 # Teste de INTEGRAÇÃO: usa os services com repositórios e uma base de dados real (em memória).
@@ -19,7 +20,8 @@ class TesteIntegracaoLinhaOTService(unittest.TestCase):
         self.conexao = criar_conexao_teste()
         self.repo_ot = OrdemTrabalhoRepository(self.conexao)
         self.repo_linha = LinhaOTRepository(self.conexao)
-        log_service = LogAlteracaoOTService(LogAlteracaoOTRepository(self.conexao), self.repo_ot)
+        log_service = LogAlteracaoOTService(
+            LogAlteracaoOTRepository(self.conexao), self.repo_ot, criar_token_teste(self))
         self.ot_service = OrdemTrabalhoService(self.repo_ot, log_service)
         self.service = LinhaOTService(self.repo_linha, self.ot_service)
 

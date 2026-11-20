@@ -81,8 +81,6 @@ class ClienteView:
             valores = (c.id_cliente, c.nome, texto(c.nif), texto(c.telefone),
                        texto(c.email), texto(c.morada), texto(c.data_registo))
             linhas.append((str(c.id_cliente), valores, ()))
-        # Não inserimos na tabela diretamente: a PesquisaTabela guarda a lista completa
-        # e mostra só o que corresponde ao que estiver escrito na pesquisa
         self.pesquisa.definir_linhas(linhas)
 
     # Chamada pela PesquisaTabela sempre que a tabela é filtrada

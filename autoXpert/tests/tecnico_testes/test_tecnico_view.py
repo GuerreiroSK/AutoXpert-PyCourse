@@ -2,8 +2,12 @@ import tkinter as tk
 import unittest
 from unittest.mock import MagicMock, patch
 
+from src.controllers.tecnico_controller import TecnicoController
 from src.models.tecnico_model import Tecnico
+from src.repositories.tecnico_repository import TecnicoRepository
+from src.services.tecnico_service import TecnicoService
 from src.views.tecnico_view import TecnicoView
+from tests.bd_testes.base_dados_teste import criar_conexao_vazia
 
 
 class TestTecnicoView(unittest.TestCase):
@@ -30,6 +34,24 @@ class TestTecnicoView(unittest.TestCase):
             {"nome": "Ana", "especialidade": "Motor", "custo_hora": "20,50"},
             True,
             None)
+
+    def test_guardar_com_lista_preenchida_grava_e_mostra_novo_tecnico(self):
+        conexao = criar_conexao_vazia()
+        self.addCleanup(conexao.close)
+        controller = TecnicoController(TecnicoService(TecnicoRepository(conexao)))
+        controller.guardar({"nome": "Ana", "especialidade": "", "custo_hora": "20"}, True)
+        pagina = TecnicoView(self.janela, controller)
+        pagina.campos["nome"].set("Rui")
+        pagina.campos["custo_hora"].set("30,50")
+
+        with patch("src.views.estilo.messagebox.showerror") as aviso:
+            pagina.clicar_guardar()
+
+        aviso.assert_not_called()
+        self.assertEqual([tecnico.nome for tecnico in controller.listar()], ["Ana", "Rui"])
+        linha_ana, linha_rui = pagina.lista.get_children()
+        self.assertEqual(pagina.lista.set(linha_ana, "nome"), "Ana")
+        self.assertEqual(pagina.lista.set(linha_rui, "nome"), "Rui")
 
     def test_erro_ao_guardar_mantem_o_formulario(self):
         self.controller.guardar.side_effect = ValueError("Custo/hora inválido.")

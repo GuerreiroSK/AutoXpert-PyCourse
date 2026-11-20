@@ -17,3 +17,11 @@ def inicializar_bd():
     with closing(get_connection()) as conn:
         with conn:
             conn.executescript(schema.read_text(encoding="utf-8"))
+            migrar_autor_log(conn)
+
+
+def migrar_autor_log(conn):
+    conn.execute("BEGIN IMMEDIATE")
+    colunas = conn.execute("PRAGMA table_info(LogAlteracaoOT)").fetchall()
+    if not any(coluna[1] == "autor" for coluna in colunas):
+        conn.execute("ALTER TABLE LogAlteracaoOT ADD COLUMN autor TEXT")

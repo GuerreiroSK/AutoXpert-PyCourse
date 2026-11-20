@@ -22,6 +22,7 @@ class TestLogAlteracaoOTController(unittest.TestCase):
         self.view.pedir_dados_alteracao.return_value = {
             "id_ot": 1,
             "campo_alterado": "estado",
+            "autor": "autor do formulário não é aceite",
             "valor_anterior": "Pendente",
             "valor_novo": "Concluída"
         }

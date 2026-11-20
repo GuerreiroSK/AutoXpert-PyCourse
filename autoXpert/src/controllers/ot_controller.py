@@ -65,7 +65,7 @@ class OrdemTrabalhoController(OtsBaseController):
                 id_ot, self._texto_ou_none(novo_estado),
                 self._texto_ou_none(data_saida_real))
             return True, ot
-        except (ValueError, sqlite3.Error) as erro:
+        except (ValueError, RuntimeError, sqlite3.Error) as erro:
             return False, self._texto_do_erro(erro)
 
     # RF05
@@ -74,7 +74,7 @@ class OrdemTrabalhoController(OtsBaseController):
             ot = self.service.atribuir_tecnico(
                 id_ot, self._para_inteiro(id_tecnico, "O técnico"))
             return True, ot
-        except (ValueError, sqlite3.Error) as erro:
+        except (ValueError, RuntimeError, sqlite3.Error) as erro:
             return False, self._texto_do_erro(erro)
 
     # ---------- Listagens e pesquisas ----------

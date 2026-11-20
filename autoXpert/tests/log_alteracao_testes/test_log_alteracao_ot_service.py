@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 from src.models.log_alteracao_ot_model import LogAlteracaoOT
 from src.services.log_alteracao_ot_service import LogAlteracaoOTService
+from tests.auth_testes.token_teste import AUTOR_TESTE, criar_token_teste
 
 
 class TestLogAlteracaoOTService(unittest.TestCase):
@@ -14,7 +15,8 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         # Por defeito, a OT existe
         self.mock_ot_repo.obter_por_id.return_value = MagicMock()
 
-        self.svc = LogAlteracaoOTService(self.mock_repo, self.mock_ot_repo)
+        self.svc = LogAlteracaoOTService(
+            self.mock_repo, self.mock_ot_repo, criar_token_teste(self))
 
     # ----- registar_alteracao: validações -----
 
@@ -57,6 +59,7 @@ class TestLogAlteracaoOTService(unittest.TestCase):
         self.assertEqual(registo.campo_alterado, "estado")   # sem espaços
         self.assertEqual(registo.valor_anterior, "Pendente")
         self.assertEqual(registo.valor_novo, "Em Curso")
+        self.assertEqual(registo.autor, AUTOR_TESTE)
         self.assertTrue(registo.data_hora)   # preenchida pelo service
         self.assertIsNone(registo.id_log)    # ainda sem ID do repositório
 

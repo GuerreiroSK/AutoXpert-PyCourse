@@ -18,7 +18,8 @@ class LogAlteracaoOTRepository:
             data_hora=linha["data_hora"],
             campo_alterado=linha["campo_alterado"],
             valor_anterior=linha["valor_anterior"],
-            valor_novo=linha["valor_novo"]
+            valor_novo=linha["valor_novo"],
+            autor=linha["autor"],
         )
 
     def _lista_de_objetos(self, linhas):
@@ -28,17 +29,18 @@ class LogAlteracaoOTRepository:
         return registos
 
     # Grava o registo, preenche o id e devolve-o
-    def inserir(self, log):
+    def inserir(self, log, *, confirmar=True):
         if not log.data_hora:
             log.data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         cursor = self.conexao.execute(
             "INSERT INTO LogAlteracaoOT (id_ot, data_hora, campo_alterado, "
-            "valor_anterior, valor_novo) VALUES (?, ?, ?, ?, ?)",
+            "valor_anterior, valor_novo, autor) VALUES (?, ?, ?, ?, ?, ?)",
             (log.id_ot, log.data_hora, log.campo_alterado, log.valor_anterior,
-             log.valor_novo)
+             log.valor_novo, log.autor)
         )
-        self.conexao.commit()
+        if confirmar:
+            self.conexao.commit()
         log.id_log = cursor.lastrowid
         return log
 

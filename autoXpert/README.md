@@ -140,6 +140,33 @@ ttk.Button(pai, text="Eliminar", style="Perigo.TButton", command=eliminar)
 - **Erros nas views:** as regras levantam `ValueError`; a view mostra-os sempre através de `estilo.py` (uma caixa de aviso), nunca com `messagebox` diretamente.
 - **Código:** só o que demos no curso (sem `lambda`, `dataclass`, anotações de tipos, `*args`...).
 
+## Log de alterações — Auditoria segura (Lab 2)
+
+Antes de abrir o AutoXpert, configure no ambiente do laboratório
+`AUTOXPERT_JWT_TOKEN` com um JWT **já emitido** e `AUTOXPERT_JWT_SECRET`
+com a chave correspondente. Não guarde estes valores no código ou no Git.
+O AutoXpert não cria contas nem emite tokens.
+
+O [validador](./src/auth.py) verifica a assinatura `HS256` e a expiração.
+O histórico obtém o autor exclusivamente do `sub` validado, tanto nos
+registos manuais como nas mudanças de estado ou de técnico. Sem um token
+válido, estas escritas são recusadas; a consulta continua disponível.
+
+Ao iniciar, a aplicação acrescenta a coluna `autor` à base existente, se
+necessário. Os registos antigos mantêm-se e mostram «Desconhecido».
+Esta regra protege a atribuição do autor pela aplicação, não o ficheiro
+SQLite contra escrita direta.
+
+Para verificar o Lab 2 sem tocar na base de dados real, execute:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest -v tests.ot_testes.test_ot_service_integracao
+```
+
+O teste usa um token com chave temporária e SQLite em memória. Verifica
+que um autor enviado pela interface é ignorado, que o `sub` fica gravado
+nos registos manuais e automáticos e que um token inválido impede a escrita.
+
 ## Testes
 
 Na pasta `autoXpert/`:

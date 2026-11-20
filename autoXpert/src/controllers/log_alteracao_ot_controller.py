@@ -1,3 +1,4 @@
+import sqlite3
 
 class LogAlteracaoOTController:
 
@@ -24,7 +25,7 @@ class LogAlteracaoOTController:
                 "Alteração registada com sucesso!"
             )
 
-        except Exception as erro:
+        except (ValueError, RuntimeError, sqlite3.Error) as erro:
             self.log_view.mostrar_erro(str(erro))
 
     def consultar_alteracao(self):

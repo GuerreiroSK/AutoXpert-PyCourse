@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS LogAlteracaoOT (
     data_hora TEXT NOT NULL,
     campo_alterado TEXT NOT NULL,
     valor_anterior TEXT,
-    valor_novo TEXT
+    valor_novo TEXT,
+    autor TEXT
 );
 
 

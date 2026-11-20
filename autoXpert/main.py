@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 
 from db.connection import inicializar_bd, get_connection
@@ -50,7 +51,7 @@ class AplicacaoAutoXpert:
     # módulo e entrega ao menu principal a função que abre cada um.
     # Todos os repositórios partilham a mesma ligação à base de dados.
 
-    def __init__(self, raiz):
+    def __init__(self, raiz, token_sessao):
         self.raiz = raiz
         self.janela_ots = None
         self.janela_tecnicos = None
@@ -82,7 +83,7 @@ class AplicacaoAutoXpert:
         self.peca_controller = PecaController(PecaService(peca_repo))
 
         # Ordens de trabalho (o service das linhas usa o service das OTs)
-        log_service = LogAlteracaoOTService(log_repo, ot_repo)
+        log_service = LogAlteracaoOTService(log_repo, ot_repo, token_sessao)
         ot_service = OrdemTrabalhoService(ot_repo, log_service)
         linha_service = LinhaOTService(linha_repo, ot_service)
         self.ot_controller = OrdemTrabalhoController(ot_service)
@@ -179,7 +180,7 @@ def main():
 
     raiz = tk.Tk()
     aplicar_tema(raiz)
-    aplicacao = AplicacaoAutoXpert(raiz)
+    aplicacao = AplicacaoAutoXpert(raiz, os.environ.get("AUTOXPERT_JWT_TOKEN"))
     raiz.mainloop()
     aplicacao.fechar()
 

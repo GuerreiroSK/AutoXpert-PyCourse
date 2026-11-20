@@ -1,6 +1,7 @@
 
 from datetime import datetime
 
+from src.auth import validar_token
 from src.models.log_alteracao_ot_model import LogAlteracaoOT
 
 
@@ -8,17 +9,22 @@ class LogAlteracaoOTService:
     # Regras do registo de alterações. Todo o SQL fica nos repositórios, que são
     # recebidos aqui: o do registo e o das OTs (para ver se a OT existe).
 
-    def __init__(self, log_repository, ot_repository):
+    def __init__(self, log_repository, ot_repository, token_sessao=None):
         self.log_repository = log_repository
         self.ot_repository = ot_repository
+        self.token_sessao = token_sessao
 
     def registar_alteracao(
         self,
         id_ot,
         campo_alterado,
         valor_anterior,
-        valor_novo
+        valor_novo,
+        *,
+        confirmar=True,
     ):
+        autor = validar_token(self.token_sessao)["sub"]
+
         # Validar o ID da ordem de trabalho
         if id_ot <= 0:
             raise ValueError("ID da ordem de trabalho inválido.")
@@ -40,11 +46,12 @@ class LogAlteracaoOTService:
             data_hora=data_hora,
             campo_alterado=campo_alterado.strip(),
             valor_anterior=valor_anterior,
-            valor_novo=valor_novo
+            valor_novo=valor_novo,
+            autor=autor,
         )
 
         # O repositório preenche o id_log do registo
-        self.log_repository.inserir(registo)
+        self.log_repository.inserir(registo, confirmar=confirmar)
 
         return registo
 

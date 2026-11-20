@@ -1,12 +1,15 @@
 import sqlite3
 import unittest
 from datetime import date
+from unittest.mock import Mock
 
+from src.controllers.log_alteracao_ot_controller import LogAlteracaoOTController
 from src.models.ot_model import OrdemTrabalho
 from src.repositories.ot_repository import OrdemTrabalhoRepository
 from src.services.ot_service import OrdemTrabalhoService
 from src.repositories.log_alteracao_ot_repository import LogAlteracaoOTRepository
 from src.services.log_alteracao_ot_service import LogAlteracaoOTService
+from tests.auth_testes.token_teste import AUTOR_TESTE, criar_token_teste
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
 
 
@@ -18,8 +21,55 @@ class TesteIntegracaoOrdemTrabalhoService(unittest.TestCase):
         self.conexao = criar_conexao_teste()
         self.repo_ot = OrdemTrabalhoRepository(self.conexao)
         self.repo_log = LogAlteracaoOTRepository(self.conexao)
-        self.service = OrdemTrabalhoService(
-            self.repo_ot, LogAlteracaoOTService(self.repo_log, self.repo_ot))
+        self.log_service = LogAlteracaoOTService(
+            self.repo_log, self.repo_ot, criar_token_teste(self))
+        self.service = OrdemTrabalhoService(self.repo_ot, self.log_service)
+
+    def test_registos_manuais_e_automaticos_guardam_o_sub(self):
+        ot = self._criar_ot()
+        vista = Mock()
+        vista.pedir_dados_alteracao.return_value = {
+            "id_ot": ot.id_ot,
+            "campo_alterado": "nota",
+            "valor_anterior": None,
+            "valor_novo": "Inspeção",
+            "autor": "autor-indicado-na-interface",
+        }
+        LogAlteracaoOTController(self.log_service, vista).registar_alteracao()
+        vista.mostrar_mensagem.assert_called_once()
+        vista.mostrar_erro.assert_not_called()
+
+        registo_manual, = self.repo_log.listar_por_ot(ot.id_ot)
+        self.assertEqual(registo_manual.campo_alterado, "nota")
+        self.assertEqual(registo_manual.autor, AUTOR_TESTE)
+
+        self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
+        self.service.atribuir_tecnico(ot.id_ot, 2)
+        registos = self.repo_log.listar_por_ot(ot.id_ot)
+        self.assertEqual([registo.autor for registo in registos], [AUTOR_TESTE] * 3)
+
+    def test_token_invalido_nao_altera_ot_nem_historico(self):
+        ot = self._criar_ot()
+        for token in (None, "invalido", criar_token_teste(self, validade=-1)):
+            with self.subTest(token_ausente=token is None):
+                self.log_service.token_sessao = token
+                with self.assertRaises(ValueError):
+                    self.service.mudar_estado(ot.id_ot, OrdemTrabalho.ESTADO_CONCLUIDA)
+                with self.assertRaises(ValueError):
+                    self.service.atribuir_tecnico(ot.id_ot, 2)
+                with self.assertRaises(ValueError):
+                    self.log_service.registar_alteracao(ot.id_ot, "nota", None, "Inspeção")
+                gravada = self.repo_ot.obter_por_id(ot.id_ot)
+                self.assertEqual(gravada.estado, OrdemTrabalho.ESTADO_PENDENTE)
+                self.assertEqual(gravada.id_tecnico, 1)
+                self.assertEqual(self.repo_log.listar_por_ot(ot.id_ot), [])
+
+    def test_falha_na_troca_de_tecnico_reverte_o_registo(self):
+        ot = self._criar_ot()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.service.atribuir_tecnico(ot.id_ot, 999)
+        self.assertEqual(self.repo_log.listar_por_ot(ot.id_ot), [])
+        self.assertEqual(self.repo_ot.obter_por_id(ot.id_ot).id_tecnico, 1)
 
     def tearDown(self):
         self.conexao.close()

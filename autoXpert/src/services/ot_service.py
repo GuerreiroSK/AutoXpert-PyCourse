@@ -84,13 +84,16 @@ class OrdemTrabalhoService:
             if data_saida_real < ot.data_entrada[:10]:
                 raise ValueError("A data de saída real não pode ser anterior "
                                  "à data de entrada")
-            ot.estado = novo_estado
-            ot.data_saida_real = data_saida_real
-            self.repo_ot.atualizar(ot)
-        else:
-            self.repo_ot.mudar_estado(id_ot, novo_estado)
-            ot.estado = novo_estado
-        self.log_service.registar_alteracao(id_ot, "estado", estado_anterior, novo_estado)
+        with self.repo_ot.conexao:
+            self.log_service.registar_alteracao(
+                id_ot, "estado", estado_anterior, novo_estado, confirmar=False)
+            if novo_estado == OrdemTrabalho.ESTADO_ENTREGUE:
+                ot.estado = novo_estado
+                ot.data_saida_real = data_saida_real
+                self.repo_ot.atualizar(ot, confirmar=False)
+            else:
+                self.repo_ot.mudar_estado(id_ot, novo_estado, confirmar=False)
+                ot.estado = novo_estado
         return ot
 
     # RF05: troca o técnico responsável
@@ -100,11 +103,12 @@ class OrdemTrabalhoService:
         if id_tecnico is None:
             raise ValueError("Tem de indicar o técnico responsável")
         tecnico_anterior = ot.id_tecnico
-        self.repo_ot.atribuir_tecnico(id_ot, id_tecnico)
-        ot.id_tecnico = id_tecnico
         if id_tecnico != tecnico_anterior:
-            self.log_service.registar_alteracao(
-                id_ot, "técnico", str(tecnico_anterior), str(id_tecnico))
+            with self.repo_ot.conexao:
+                self.log_service.registar_alteracao(
+                    id_ot, "técnico", str(tecnico_anterior), str(id_tecnico), confirmar=False)
+                self.repo_ot.atribuir_tecnico(id_ot, id_tecnico, confirmar=False)
+                ot.id_tecnico = id_tecnico
         return ot
 
     # RF13: guarda o custo total da OT. O valor é calculado pelo LinhaOTService

@@ -2,8 +2,12 @@ import tkinter as tk
 import unittest
 from unittest.mock import MagicMock, patch
 
+from src.controllers.peca_controller import PecaController
 from src.models.peca_model import Peca
+from src.repositories.peca_repository import PecaRepository
+from src.services.peca_service import PecaService
 from src.views.peca_view import PecaView
+from tests.bd_testes.base_dados_teste import criar_conexao_vazia
 
 
 class TestPecaView(unittest.TestCase):
@@ -45,6 +49,26 @@ class TestPecaView(unittest.TestCase):
         aviso.assert_called_once()
         self.assertIn("Nome é obrigatório.", aviso.call_args[0])
         self.assertEqual(pagina.campos["referencia"].get(), "REF1")
+
+    def test_guardar_nova_peca_atualiza_lista_ja_preenchida(self):
+        conexao = criar_conexao_vazia()
+        self.addCleanup(conexao.close)
+        repositorio = PecaRepository(conexao)
+        repositorio.inserir(Peca("REF1", "Filtro", 5.0, 9.0, 1, 2))
+        controller = PecaController(PecaService(repositorio))
+        pagina = PecaView(self.janela, controller)
+        pagina.campos["referencia"].set("REF2")
+        pagina.campos["nome"].set("Pastilhas")
+        pagina.campos["preco_compra"].set("10")
+        pagina.campos["preco_venda"].set("15")
+
+        with patch("src.views.estilo.messagebox.showerror") as aviso:
+            pagina.clicar_guardar()
+
+        aviso.assert_not_called()
+        self.assertCountEqual([peca.referencia for peca in controller.listar()], ["REF1", "REF2"])
+        referencias = [pagina.lista.set(iid, "referencia") for iid in pagina.lista.get_children()]
+        self.assertCountEqual(referencias, ["REF1", "REF2"])
 
     def test_movimentos_sem_selecao_levantam_erro(self):
         pagina = self.pagina()
