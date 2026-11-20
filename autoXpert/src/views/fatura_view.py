@@ -8,11 +8,10 @@ from tkinter import ttk, messagebox
 
 from src.services.validacao import validar_campos
 
-from src.views.tema import tags_linha_alternada
 from src.views.estilo import (
     criar_janela, criar_cabecalho, criar_tabela, criar_barra_estado, PesquisaTabela,
     texto, pedir_dados, pedir_inteiro, mostrar_erro, mostrar_info, perguntar_sim_nao,
-    texto_do_erro
+    texto_do_erro, ajustar_janela
 )
 
 METODOS = ["Dinheiro", "Multibanco", "MB Way", "Transferência"]
@@ -88,14 +87,11 @@ class FaturaView:
                 pago = "Sim"
             else:
                 pago = "Não"
-            self.tabela.insert("", "end", iid=str(f.id_fatura), values=(
-                f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2), pago,
-                texto(f.data_pagamento), texto(f.metodo_pagamento)),
-                tags=tags_linha_alternada(self.tabela))
-        if len(faturas) == 0:
             valores = (f.id_fatura, f.id_ot, f.data_emissao, round(f.valor_total, 2),
                        pago, texto(f.data_pagamento), texto(f.metodo_pagamento))
             linhas.append((str(f.id_fatura), valores, ()))
+        # Não inserimos na tabela diretamente: a PesquisaTabela guarda a lista completa,
+        # mostra só o que corresponde à pesquisa e trata das cores das linhas.
         self.pesquisa.definir_linhas(linhas)
 
     # Chamada pela PesquisaTabela sempre que a tabela é filtrada
@@ -332,9 +328,13 @@ class FaturaView:
         # Cria a janela secundária.
         janela = tk.Toplevel(self.janela)
         janela.title("Detalhe da Fatura " + str(fatura.id_fatura))
-        janela.geometry("850x650")
+        janela.geometry("850x650+80+50")
         janela.transient(self.janela)
         janela.protocol("WM_DELETE_WINDOW", janela.destroy)
+
+        # Botão Fechar criado primeiro e fixo no fundo (ver o detalhe da OT)
+        ttk.Button(janela, text="Fechar", command=janela.destroy).pack(
+            side="bottom", pady=10)
 
         # Apresenta a identificação e os dados principais da fatura.
         quadro_fatura = ttk.LabelFrame(janela, text="Dados da Fatura")
@@ -443,10 +443,5 @@ class FaturaView:
             texto(fatura.metodo_pagamento), 1, 0
         )
 
-        # Botão para fechar a janela de detalhe.
-        ttk.Button(
-            janela,
-            text="Fechar",
-            command=janela.destroy
-        ).pack(pady=10)
+        ajustar_janela(janela, 850, 650)
 

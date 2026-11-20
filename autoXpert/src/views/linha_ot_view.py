@@ -26,8 +26,10 @@ class PainelLinhasOT:
         self.id_ot_atual = None  # OT cujas linhas estão a ser mostradas
 
         self.quadro = ttk.Frame(pai)
-        self.criar_tabela()
+        # Ordem importa: formulário e botões são empacotados primeiro (side="bottom")
+        # para ficarem sempre visíveis; a tabela, que pode encolher, vem a seguir.
         self.criar_formulario()
+        self.criar_tabela()
 
     # ================= Construção do painel =================
 
@@ -40,7 +42,7 @@ class PainelLinhasOT:
             nomes.append(coluna[0])
 
         self.tabela = ttk.Treeview(self.quadro, columns=nomes, show="headings",
-                                   height=5, selectmode="browse")
+                                   height=4, selectmode="browse")
         configurar_linhas_alternadas(self.tabela)
         for nome, titulo, largura in colunas:
             self.tabela.heading(nome, text=titulo)
@@ -51,8 +53,11 @@ class PainelLinhasOT:
         self.tabela.pack(fill="both", expand=True, pady=(0, 6))
 
     def criar_formulario(self):
+        # Os botões ficam no fundo do painel e o formulário logo acima deles
+        botoes = ttk.Frame(self.quadro)
+        botoes.pack(side="bottom", fill="x", pady=(4, 0))
         form = ttk.Frame(self.quadro)
-        form.pack(fill="x", pady=4)
+        form.pack(side="bottom", fill="x", pady=4)
 
         ttk.Label(form, text="Tipo:").grid(row=0, column=0, padx=5, sticky="e")
         self.combo_tipo = ttk.Combobox(form, values=self.tipos, state="readonly", width=9)
@@ -83,8 +88,6 @@ class PainelLinhasOT:
                             self.entrada_preco, self.entrada_horas, self.entrada_peca):
             preparar_campo(campo_texto)
 
-        botoes = ttk.Frame(self.quadro)
-        botoes.pack(fill="x", pady=(4, 0))
         ttk.Button(botoes, text="Adicionar linha",
                    command=self.adicionar_linha).pack(side="left", padx=5)
         ttk.Button(botoes, text="Remover linha selecionada",

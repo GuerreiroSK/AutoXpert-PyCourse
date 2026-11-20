@@ -1,7 +1,6 @@
 import sqlite3
 from tkinter import ttk
 
-from src.views.tema import tags_linha_alternada
 from src.services.validacao import validar_numero_telefone
 
 from src.views.estilo import (
@@ -79,11 +78,6 @@ class ClienteView:
         clientes = self.controller.listar_clientes()
         linhas = []
         for c in clientes:
-            self.tabela.insert("", "end", iid=str(c.id_cliente), values=(
-                c.id_cliente, c.nome, texto(c.nif), texto(c.telefone),
-                texto(c.email), texto(c.morada), texto(c.data_registo)),
-                tags=tags_linha_alternada(self.tabela))
-        if len(clientes) == 0:
             valores = (c.id_cliente, c.nome, texto(c.nif), texto(c.telefone),
                        texto(c.email), texto(c.morada), texto(c.data_registo))
             linhas.append((str(c.id_cliente), valores, ()))

@@ -1,7 +1,12 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from src.views.estilo import criar_cabecalho, perguntar_sim_nao
+from src.views.estilo import criar_cabecalho, perguntar_sim_nao, ajustar_janela
+
+
+# Quantos botões de módulos por linha. Em duas colunas o menu fica baixo o suficiente
+# para caber em ecrãs pequenos (1366x768) mesmo com todos os módulos de administrador.
+COLUNAS_MENU = 2
 
 
 class MenuPrincipalView:
@@ -16,8 +21,7 @@ class MenuPrincipalView:
         self.obter_sumario = obter_sumario
 
         self.raiz.title("AutoXpert")
-        # Reserva espaço adicional para o painel de sumário.
-        self.raiz.geometry("440x" + str(300 + 62 * len(entradas)))
+        self.raiz.geometry("560x600")
         self.raiz.resizable(False, False)
 
         criar_cabecalho(self.raiz, "AutoXpert")
@@ -72,35 +76,26 @@ class MenuPrincipalView:
         # Carrega as estatísticas quando o menu é aberto.
         self.atualizar_sumario()
 
-        for texto_botao, comando in self.entradas:
+        # "Sair" é criado antes dos módulos e fica fixo no fundo (side="bottom"):
+        # assim nunca desaparece, mesmo num ecrã baixo.
+        ttk.Button(quadro, text="Sair", command=self.sair).pack(side="bottom", pady=(8, 5))
+
+        botoes = ttk.Frame(quadro)
+        botoes.pack(fill="x")
+        for coluna in range(COLUNAS_MENU):
+            botoes.columnconfigure(coluna, weight=1, uniform="menu")
+        for posicao, (texto_botao, comando) in enumerate(self.entradas):
             if comando is None:
-                botao = ttk.Button(quadro, text=texto_botao + "  (em breve)",
+                botao = ttk.Button(botoes, text=texto_botao + "  (em breve)",
                                    style="Menu.TButton", state="disabled")
             else:
-                botao = ttk.Button(quadro, text=texto_botao, style="Menu.TButton",
+                botao = ttk.Button(botoes, text=texto_botao, style="Menu.TButton",
                                    command=comando)
-            botao.pack(fill="x", pady=4)
-
-        ttk.Button(quadro, text="Sair", command=self.sair).pack(pady=(12, 5))
+            botao.grid(row=posicao // COLUNAS_MENU, column=posicao % COLUNAS_MENU,
+                       sticky="ew", padx=4, pady=3)
 
         self.raiz.protocol("WM_DELETE_WINDOW", self.sair)
 
-    # Consulta novamente os dados e atualiza os valores do painel.
-    def atualizar_sumario(self):
-        try:
-            dados = self.obter_sumario()
-
-            self.clientes_var.set(str(dados["clientes"]))
-            self.ordens_var.set(str(dados["ordens_abertas"]))
-            self.faturas_var.set(str(dados["faturas_pendentes"]))
-
-        except Exception as erro:
-            messagebox.showerror(
-                "Erro",
-                "Não foi possível atualizar o sumário:\n" + str(erro),
-                parent=self.raiz
-            )
-
-    def sair(self):
-        if perguntar_sim_nao(self.raiz, "Sair", "Quer mesmo sair do AutoXpert?"):
-            self.raiz.destroy()
+        # A altura vem do conteúdo (resumo + um botão por módulo + Sair), por isso o
+        # botão "Sair" nunca fica cortado, qualquer que seja o número de módulos.
+        ajustar_janela(self.raiz, 560, 0)
