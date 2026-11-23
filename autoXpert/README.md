@@ -22,7 +22,7 @@ Aplicação de gestão de uma oficina automóvel, feita em **Python** no projeto
 ### 1. Requisitos
 
 - **Python 3.12** ou superior
-- **Tkinter** (as janelas) e **openpyxl** (o relatório em Excel)
+- **Tkinter** (as janelas), **openpyxl** (o relatório em Excel), **bcrypt** (hash das palavras-passe) e **PyJWT** (tokens de sessão)
 
 No Ubuntu/Debian:
 
@@ -40,7 +40,7 @@ Abrir um terminal **dentro da pasta `autoXpert/`** (a que tem o `main.py`) e cor
 python3 main.py
 ```
 
-Abre o **menu principal**, com um botão por módulo. A base de dados (`db/autoxpert.db`) é criada sozinha na primeira vez, a partir de `db/schema.sql`. Para começar do zero, basta apagar esse ficheiro. **Se o schema mudar** (como aconteceu com `km_entrada`), apagar o `autoxpert.db` antigo para ser criado outra vez.
+Na primeira execução, a aplicação pede a criação da primeira conta de administrador. Nas execuções seguintes, pede o utilizador e a palavra-passe antes de abrir o **menu principal**, com um botão por módulo. A base de dados (`db/autoxpert.db`) é criada sozinha na primeira vez, a partir de `db/schema.sql`. Para começar do zero, basta apagar esse ficheiro. **Se o schema mudar** (como aconteceu com `km_entrada`), apagar o `autoxpert.db` antigo para ser criado outra vez.
 
 ### 3. Primeiro uso (ordem recomendada)
 

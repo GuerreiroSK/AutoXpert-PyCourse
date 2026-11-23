@@ -1,4 +1,7 @@
 import tkinter as tk
+from tkinter import messagebox, simpledialog
+
+from auth import autenticar, criar_token, registar_utilizador, validar_token
 
 from db.connection import inicializar_bd, get_connection
 
@@ -50,8 +53,11 @@ class AplicacaoAutoXpert:
     # módulo e entrega ao menu principal a função que abre cada um.
     # Todos os repositórios partilham a mesma ligação à base de dados.
 
-    def __init__(self, raiz):
+    def __init__(self, raiz, token):
         self.raiz = raiz
+        # O JWT representa a sessão autenticada durante a utilização da aplicação.
+        self.token = token
+        self.utilizador = validar_token(token)
         self.janela_ots = None
         self.janela_tecnicos = None
         self.janela_pecas = None
@@ -174,14 +180,109 @@ class AplicacaoAutoXpert:
         self.conexao.close()
 
 
+# Quantas vezes se pode errar no login antes de a aplicação fechar
+MAX_TENTATIVAS_LOGIN = 3
+
+
 def main():
+    # Garante que a tabela de utilizadores existe antes de pedir credenciais.
     inicializar_bd()
 
     raiz = tk.Tk()
     aplicar_tema(raiz)
-    aplicacao = AplicacaoAutoXpert(raiz)
-    raiz.mainloop()
-    aplicacao.fechar()
+    raiz.withdraw()  # Mantém o menu principal escondido durante a autenticação.
+
+    conn = get_connection()
+    try:
+        total_utilizadores = conn.execute(
+            "SELECT COUNT(*) FROM utilizadores"
+        ).fetchone()[0]
+
+        # Na primeira execução, cria-se a primeira conta de administrador.
+        # Depois desta configuração inicial, só é possível entrar com uma conta existente.
+        if total_utilizadores == 0:
+            messagebox.showinfo(
+                "Configuração inicial",
+                "Ainda não existem utilizadores. Crie a primeira conta de administrador.",
+                parent=raiz,
+            )
+            novo_login = simpledialog.askstring(
+                "AutoXpert - Primeiro acesso", "Nome de utilizador:", parent=raiz
+            )
+            if not novo_login or not novo_login.strip():
+                raiz.destroy()
+                return
+
+            nova_senha = simpledialog.askstring(
+                "AutoXpert - Primeiro acesso", "Criar palavra-passe:",
+                show="*", parent=raiz,
+            )
+            if not nova_senha:
+                raiz.destroy()
+                return
+
+            confirmar_senha = simpledialog.askstring(
+                "AutoXpert - Primeiro acesso", "Confirmar palavra-passe:",
+                show="*", parent=raiz,
+            )
+            if nova_senha != confirmar_senha:
+                messagebox.showerror(
+                    "AutoXpert", "As palavras-passe não coincidem.", parent=raiz
+                )
+                raiz.destroy()
+                return
+
+            try:
+                registar_utilizador(conn, novo_login, nova_senha, "administrador")
+            except Exception as erro:
+                messagebox.showerror(
+                    "AutoXpert", "Não foi possível criar o administrador:\n" + str(erro),
+                    parent=raiz,
+                )
+                raiz.destroy()
+                return
+
+        # Ecrã de login simples, seguindo o fluxo proposto no documento do Grupo 2.
+        # Dá 3 tentativas (uma gralha na palavra-passe não deve obrigar a reabrir o
+        # programa). Cancelar qualquer janela de login fecha a aplicação sem mensagem
+        # de erro, porque não foi uma tentativa falhada.
+        utilizador = None
+        for tentativa in range(MAX_TENTATIVAS_LOGIN):
+            login = simpledialog.askstring("AutoXpert", "Utilizador:", parent=raiz)
+            if login is None:
+                raiz.destroy()
+                return
+            senha = simpledialog.askstring(
+                "AutoXpert", "Password:", show="*", parent=raiz
+            )
+            if senha is None:
+                raiz.destroy()
+                return
+            utilizador = autenticar(conn, login, senha)
+            if utilizador is not None:
+                break
+            # Mensagem igual para "utilizador não existe" e "palavra-passe errada",
+            # para não revelar que utilizadores existem.
+            messagebox.showerror(
+                "AutoXpert", "Credenciais inválidas.", parent=raiz
+            )
+
+        if utilizador is None:
+            raiz.destroy()
+            return
+
+        token = criar_token(utilizador["login"], utilizador["perfil"])
+        # Confirma que o token criado é válido antes de abrir a aplicação.
+        validar_token(token)
+    finally:
+        conn.close()
+
+    raiz.deiconify()  # Só mostra a aplicação depois de um login bem-sucedido.
+    aplicacao = AplicacaoAutoXpert(raiz, token)
+    try:
+        raiz.mainloop()
+    finally:
+        aplicacao.fechar()
 
 
 main()

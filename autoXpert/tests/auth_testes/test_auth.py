@@ -50,6 +50,17 @@ class TesteAuth(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             auth.registar_utilizador(self.conexao, "ana", "outra1234", "tecnico")
 
+    def test_login_nao_distingue_maiusculas_e_ignora_espacos(self):
+        auth.registar_utilizador(self.conexao, "  Ana ", "segredo123", "tecnico")
+        self.assertEqual(auth.autenticar(self.conexao, "ana", "segredo123"),
+                         {"login": "Ana", "perfil": "tecnico"})
+        with self.assertRaises(sqlite3.IntegrityError):
+            auth.registar_utilizador(self.conexao, "ANA", "outra1234", "tecnico")
+
+    def test_login_vazio_e_recusado(self):
+        with self.assertRaises(ValueError):
+            auth.registar_utilizador(self.conexao, "   ", "segredo123", "tecnico")
+
     def test_palavra_passe_demasiado_longa_e_recusada(self):
         with self.assertRaises(ValueError):
             auth.registar_utilizador(self.conexao, "ana", "x" * 73, "tecnico")
