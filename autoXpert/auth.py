@@ -6,6 +6,7 @@
 import datetime
 import os
 import secrets
+import sqlite3
 
 import bcrypt
 import jwt
@@ -32,7 +33,14 @@ def registar_utilizador(conn, login: str, senha: str, perfil: str):
         raise ValueError("A palavra-passe é demasiado longa (máximo 72 bytes).")
     salt = bcrypt.gensalt(rounds=12)
     hashed = bcrypt.hashpw(dados, salt)
-    # Se o login já existir, a BD levanta sqlite3.IntegrityError (coluna UNIQUE)
+    login = login.strip()
+    if not login:
+        raise ValueError("O nome de utilizador é obrigatório.")
+    # "Ana" e "ana" são o mesmo login. Verificamos aqui (e não só na coluna UNIQUE)
+    # para funcionar também nas bases de dados que já existem, sem mudar o schema.
+    if conn.execute("SELECT 1 FROM utilizadores WHERE login = ? COLLATE NOCASE",
+                    (login,)).fetchone() is not None:
+        raise sqlite3.IntegrityError("Esse nome de utilizador já existe.")
     conn.execute(
         "INSERT INTO utilizadores (login, senha_hash, perfil) VALUES (?, ?, ?)",
         (login, hashed.decode("ascii"), perfil)
@@ -43,8 +51,9 @@ def registar_utilizador(conn, login: str, senha: str, perfil: str):
 def autenticar(conn, login: str, senha: str) -> dict | None:
     """Verifica credenciais. Retorna dados do utilizador ou None."""
     row = conn.execute(
-        "SELECT login, senha_hash, perfil FROM utilizadores WHERE login = ?",
-        (login,)
+        "SELECT login, senha_hash, perfil FROM utilizadores "
+        "WHERE login = ? COLLATE NOCASE",
+        (login.strip(),)
     ).fetchone()
     if row is None:
         # Gasta o mesmo tempo que uma verificação verdadeira, para não se descobrir

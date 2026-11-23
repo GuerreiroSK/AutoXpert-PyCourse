@@ -127,9 +127,16 @@ class TestTema(unittest.TestCase):
         raiz = MagicMock()
         chamadas = MagicMock()
         caminho = Path(__file__).resolve().parent.parent / "main.py"
+        # O arranque passa agora pelo login: simulamos um utilizador válido para o teste
+        # não abrir janelas de diálogo reais (ficava à espera de alguém para escrever).
+        ligacao = MagicMock()
+        ligacao.execute.return_value.fetchone.return_value = [1]
         with patch("tkinter.Tk", return_value=raiz), \
                 patch("db.connection.inicializar_bd"), \
-                patch("db.connection.get_connection"), \
+                patch("db.connection.get_connection", return_value=ligacao), \
+                patch("tkinter.simpledialog.askstring", return_value="admin"), \
+                patch("auth.autenticar",
+                      return_value={"login": "admin", "perfil": "administrador"}), \
                 patch("src.views.tema.aplicar_tema") as aplicar, \
                 patch("src.views.menu_principal_view.MenuPrincipalView") as menu:
             chamadas.attach_mock(aplicar, "aplicar")
