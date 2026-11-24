@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 from src.controllers.viatura_controller import ViaturaController
 from src.models.viatura_model import Viatura
+from auth import criar_token
 
 
 class TestViaturaController(unittest.TestCase):
@@ -12,10 +13,13 @@ class TestViaturaController(unittest.TestCase):
         self.service = Mock()
         self.view = Mock()
 
+        token = criar_token("teste", "administrador")
+
         self.controller = ViaturaController(
             self.service,
-            self.view
-        )
+            self.view,
+            token
+    )
 
     def criar_viatura(self):
         return Viatura(

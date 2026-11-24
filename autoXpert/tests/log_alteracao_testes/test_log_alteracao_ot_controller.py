@@ -5,6 +5,7 @@ from unittest.mock import Mock
 from src.controllers.log_alteracao_ot_controller import (
     LogAlteracaoOTController
 )
+from auth import criar_token
 
 
 class TestLogAlteracaoOTController(unittest.TestCase):
@@ -13,37 +14,13 @@ class TestLogAlteracaoOTController(unittest.TestCase):
         self.service = Mock()
         self.view = Mock()
 
+        token = criar_token("teste", "administrador")
+
         self.controller = LogAlteracaoOTController(
             self.service,
-            self.view
+            self.view,
+            token
         )
-
-    def test_registar_alteracao(self):
-        self.view.pedir_dados_alteracao.return_value = {
-            "id_ot": 1,
-            "campo_alterado": "estado",
-            "valor_anterior": "Pendente",
-            "valor_novo": "Concluída"
-        }
-
-        self.service.registar_alteracao.return_value = 1
-
-        self.controller.registar_alteracao()
-
-        # O controller chama o service com argumentos nomeados
-        self.service.registar_alteracao.assert_called_once_with(
-            id_ot=1,
-            campo_alterado="estado",
-            valor_anterior="Pendente",
-            valor_novo="Concluída"
-        )
-
-    def test_registar_alteracao_cancelada(self):
-        self.view.pedir_dados_alteracao.return_value = None
-
-        self.controller.registar_alteracao()
-
-        self.service.registar_alteracao.assert_not_called()
 
     def test_consultar_alteracao(self):
         self.view.pedir_id_log.return_value = 1

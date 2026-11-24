@@ -31,7 +31,6 @@ class LogAlteracaoOTView:
         corpo.pack(fill="both", expand=True)
 
         botoes = [
-            ("Registar alteração", controller.registar_alteracao),
             ("Consultar alteração por ID", controller.consultar_alteracao),
             ("Listar alterações de uma OT", controller.listar_alteracoes_por_ot),
             ("Listar todas as alterações", controller.listar_todas_alteracoes),

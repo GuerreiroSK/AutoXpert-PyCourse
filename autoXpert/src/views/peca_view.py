@@ -15,27 +15,39 @@ class PecaView(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, padding=12)
         self.controller = controller
-        self.id_selecionado = None  # peça que está a ser editada (None = nova)
+        self.admin = self.controller.perfil_atual() == "administrador"
+        self.id_selecionado = None
 
         self.campos = {}
-        valores_iniciais = [("referencia", ""), ("nome", ""), ("preco_compra", "0"),
-                            ("preco_venda", "0"), ("stock_atual", "0"),
-                            ("stock_minimo", "0"), ("fornecedor", "")]
+        self.entradas = {}
+        valores_iniciais = [
+            ("referencia", ""), ("nome", ""), ("preco_compra", "0"),
+            ("preco_venda", "0"), ("stock_atual", "0"),
+            ("stock_minimo", "0"), ("fornecedor", "")
+        ]
+
         for chave, valor in valores_iniciais:
             self.campos[chave] = tk.StringVar(self, value=valor)
 
         self.apenas_stock_baixo = tk.BooleanVar(self, value=False)
         self.movimento = tk.StringVar(self, value="1")
         self.estado = tk.StringVar(self)
-        self.columnconfigure(1, weight=1)
-        self.rowconfigure(10, weight=1)
 
-        self.criar_formulario()
-        self.criar_botoes()
-        self.criar_movimentos()
+        linha_lista = 10 if self.admin else 0
+        self.rowconfigure(linha_lista, weight=1)
+
+        if self.admin:
+            self.columnconfigure(1, weight=1)
+            self.criar_formulario()
+            self.criar_botoes()
+            self.criar_movimentos()
+
         self.criar_lista()
+
+        linha_estado = 11 if self.admin else 1
         ttk.Label(self, textvariable=self.estado).grid(
-            row=11, column=0, columnspan=2, sticky="w", pady=8)
+            row=linha_estado, column=0, columnspan=2, sticky="w", pady=8
+        )
 
         self.carregar()
 
@@ -48,7 +60,6 @@ class PecaView(ttk.Frame):
                    ("stock_atual", "Stock inicial / atual *"),
                    ("stock_minimo", "Stock mínimo *"), ("fornecedor", "Fornecedor")]
         linha = 0
-        self.entradas = {}   # chave -> campo de texto, para pintar os que têm erro
         for chave, rotulo in rotulos:
             ttk.Label(self, text=rotulo).grid(row=linha, column=0, sticky="w", pady=2)
             entrada = tk.Entry(self, textvariable=self.campos[chave])
@@ -89,7 +100,10 @@ class PecaView(ttk.Frame):
 
     def criar_lista(self):
         quadro = ttk.Frame(self)
-        quadro.grid(row=10, column=0, columnspan=2, sticky="nsew")
+        quadro.grid(
+            row=10 if self.admin else 0,
+            column=0, columnspan=2, sticky="nsew"
+        )
         quadro.columnconfigure(0, weight=1)
         # Barra de pesquisa por cima da lista, dentro do mesmo quadro: assim não
         # mexe nas linhas do formulário que ficam acima (a lista passa para a linha 1)
@@ -117,7 +131,8 @@ class PecaView(ttk.Frame):
         barra = ttk.Scrollbar(quadro, orient="vertical", command=self.lista.yview)
         barra.grid(row=1, column=1, sticky="ns")
         self.lista.configure(yscrollcommand=barra.set)
-        self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar)
+        if self.admin:
+            self.lista.bind("<<TreeviewSelect>>", self.ao_selecionar)
 
     # ================= Botões (mostram os erros esperados num aviso) =================
 
@@ -167,7 +182,8 @@ class PecaView(ttk.Frame):
             # quando a linha volta a aparecer depois de limpar a pesquisa
             linhas.append((str(peca.id_peca), valores, etiquetas))
         self.pesquisa.definir_linhas(linhas)
-        self.nova()
+        if self.admin:
+            self.nova()
         self.mostrar_contagem(len(self.lista.get_children()), len(pecas))
 
     # Chamada pela PesquisaTabela sempre que a tabela é filtrada

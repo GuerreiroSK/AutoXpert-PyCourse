@@ -99,3 +99,23 @@ class MenuPrincipalView:
         # A altura vem do conteúdo (resumo + um botão por módulo + Sair), por isso o
         # botão "Sair" nunca fica cortado, qualquer que seja o número de módulos.
         ajustar_janela(self.raiz, 560, 0)
+
+    def atualizar_sumario(self):
+        sumario = self.obter_sumario()
+
+        self.clientes_var.set(
+            str(sumario.get("clientes", "N/A"))
+        )
+        self.ordens_var.set(
+            str(sumario.get("ordens_abertas", 0))
+        )
+        self.faturas_var.set(
+            str(sumario.get("faturas_pendentes", "N/A"))
+        )
+
+    def sair(self):
+        if messagebox.askyesno(
+            "Sair",
+            "Tem a certeza de que pretende sair da aplicação?"
+        ):
+            self.raiz.destroy()

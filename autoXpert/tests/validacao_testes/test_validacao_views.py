@@ -143,6 +143,7 @@ class TestPecaView(Base):
         super().setUp()
         self.controller = MagicMock()
         self.controller.listar.return_value = []
+        self.controller.perfil_atual.return_value = "administrador"
         self.pagina = PecaView(self.raiz, self.controller)
 
     def test_campos_vazios_nao_chamam_o_controller(self):

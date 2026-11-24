@@ -3,13 +3,15 @@ from unittest.mock import MagicMock
 
 from src.controllers.peca_controller import PecaController
 from src.models.peca_model import Peca
+from auth import criar_token
 
 
 class TestPecaController(unittest.TestCase):
 
     def setUp(self):
         self.servico = MagicMock()
-        self.controller = PecaController(self.servico)
+        token = criar_token("teste", "administrador")
+        self.controller = PecaController(self.servico, token)
         self.dados = {"referencia": "REF1", "nome": "Filtro", "preco_compra": "5,5",
                       "preco_venda": "9", "stock_atual": "3", "stock_minimo": "1",
                       "fornecedor": "Forn"}

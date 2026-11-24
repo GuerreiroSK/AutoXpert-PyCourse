@@ -25,6 +25,7 @@ from src.views.fatura_view import FaturaView
 from src.views.ot_view import JanelaOTs
 from src.views.tema import aplicar_tema
 from tests.bd_testes.base_dados_teste import criar_conexao_teste
+from auth import criar_token
 
 
 class BaseTk(unittest.TestCase):
@@ -35,6 +36,7 @@ class BaseTk(unittest.TestCase):
         self.addCleanup(self.raiz.destroy)
         self.conexao = criar_conexao_teste()
         self.addCleanup(self.conexao.close)
+        self.token = criar_token("teste", "administrador")
 
     def tamanho(self, janela):
         # "LARGURAxALTURA+X+Y" -> (largura, altura). Com a janela ainda por mostrar o Tk
@@ -122,8 +124,11 @@ class TestJanelaDasOTs(BaseTk):
         ot_repo = OrdemTrabalhoRepository(self.conexao)
         log = LogAlteracaoOTService(LogAlteracaoOTRepository(self.conexao), ot_repo)
         ot_service = OrdemTrabalhoService(ot_repo, log)
-        controller = OrdemTrabalhoController(ot_service)
-        linhas = LinhaOTController(LinhaOTService(LinhaOTRepository(self.conexao), ot_service))
+        controller = OrdemTrabalhoController(ot_service, self.token)
+        linhas = LinhaOTController(
+            LinhaOTService(LinhaOTRepository(self.conexao), ot_service),
+            self.token
+        )
         janela = tk.Toplevel(self.raiz)
         self.view = JanelaOTs(janela, controller, linhas)
         return janela
@@ -176,7 +181,7 @@ class TestListagensComPesquisa(BaseTk):
     def test_clientes_aparecem_na_tabela(self):
         self.base()
         view = ClienteView(self.raiz, ClienteController(ClienteService(
-            ClienteRepository(self.conexao))))
+            ClienteRepository(self.conexao)), self.token))
 
         view.menu()
 
@@ -188,7 +193,7 @@ class TestListagensComPesquisa(BaseTk):
         self.conexao.execute("DELETE FROM Cliente")
         self.conexao.commit()
         view = ClienteView(self.raiz, ClienteController(ClienteService(
-            ClienteRepository(self.conexao))))
+            ClienteRepository(self.conexao)), self.token))
 
         view.menu()   # antes dava NameError
 
@@ -198,7 +203,7 @@ class TestListagensComPesquisa(BaseTk):
     def test_pesquisa_de_clientes_filtra_e_repoe(self):
         self.base()
         view = ClienteView(self.raiz, ClienteController(ClienteService(
-            ClienteRepository(self.conexao))))
+            ClienteRepository(self.conexao)), self.token))
         view.menu()
 
         view.pesquisa.termo.set("joao")   # sem acento e minúsculas
@@ -216,7 +221,7 @@ class TestListagensComPesquisa(BaseTk):
         servico = FaturaService(FaturaRepository(self.conexao))
         for id_ot in (1, 2, 3):
             servico.registar(id_ot, 100 * id_ot, 0, None, None)
-        view = FaturaView(self.raiz, FaturaController(servico))
+        view = FaturaView(self.raiz, FaturaController(servico, self.token))
         view.menu()
         return view
 

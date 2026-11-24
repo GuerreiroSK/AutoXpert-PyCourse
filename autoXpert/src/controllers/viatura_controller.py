@@ -1,16 +1,18 @@
-
+from src.rbac import require_perfil
 from src.models.viatura_model import Viatura
 
 
 class ViaturaController:
 
-    def __init__(self, viatura_service, viatura_view):
+    def __init__(self, viatura_service, viatura_view, token=None):
         self.viatura_service = viatura_service
         self.viatura_view = viatura_view
+        self.token = token
 
     # -----------------------------------------
     # REGISTAR VIATURA
     # -----------------------------------------
+    @require_perfil("administrador", "rececionista", "tecnico")
     def registar_viatura(self):
 
         dados = self.viatura_view.pedir_dados_viatura()
@@ -52,6 +54,7 @@ class ViaturaController:
     # -----------------------------------------
     # CONSULTAR VIATURA
     # -----------------------------------------
+    @require_perfil("administrador", "rececionista", "tecnico")
     def consultar_viatura(self):
 
         matricula = self.viatura_view.pedir_matricula()
@@ -82,6 +85,7 @@ class ViaturaController:
     # -----------------------------------------
     # LISTAR VIATURAS
     # -----------------------------------------
+    @require_perfil("administrador", "rececionista", "tecnico")
     def listar_viaturas(self):
 
         try:
@@ -104,6 +108,7 @@ class ViaturaController:
     # -----------------------------------------
     # ATUALIZAR VIATURA
     # -----------------------------------------
+    @require_perfil("administrador", "rececionista", "tecnico")
     def atualizar_viatura(self):
 
         id_viatura = self.viatura_view.pedir_id_viatura()
@@ -188,6 +193,7 @@ class ViaturaController:
     # -----------------------------------------
     # ELIMINAR VIATURA
     # -----------------------------------------
+    @require_perfil("administrador", "rececionista", "tecnico")
     def eliminar_viatura(self):
 
         id_viatura = self.viatura_view.pedir_id_viatura()
@@ -246,6 +252,7 @@ class ViaturaController:
     # -----------------------------------------
     # CONSULTAR HISTÓRICO DA VIATURA
     # -----------------------------------------
+    @require_perfil("administrador", "rececionista", "tecnico")
     def consultar_historico(self):
 
         matricula = self.viatura_view.pedir_matricula()

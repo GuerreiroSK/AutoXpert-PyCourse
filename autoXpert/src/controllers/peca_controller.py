@@ -1,20 +1,29 @@
 from src.controllers.conversoes import ler_decimal, ler_inteiro
 from src.models.peca_model import Peca
+from src.rbac import require_perfil
 
 
 class PecaController:
     # Converte o texto do formulário em dados para o service.
 
-    def __init__(self, servico):
+    def __init__(self, servico, token=None):
         self.servico = servico
+        self.token = token
 
+    def perfil_atual(self):
+        from src.rbac import obter_perfil
+        return obter_perfil(self.token)
+
+    @require_perfil("administrador", "rececionista", "tecnico")
     def listar(self, apenas_stock_baixo=False):
         return self.servico.listar(apenas_stock_baixo)
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def obter(self, id_peca):
         return self.servico.obter(id_peca)
 
-    # dados é um dicionário com o texto dos campos do formulário
+    # Criar ou atualizar peça.
+    @require_perfil("administrador", "rececionista", "tecnico")
     def guardar(self, dados, id_peca=None):
         peca = Peca(
             referencia=dados["referencia"],
@@ -28,9 +37,14 @@ class PecaController:
         )
         return self.servico.guardar(peca)
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def ajustar_stock(self, id_peca, variacao):
-        return self.servico.ajustar_stock(id_peca, ler_inteiro(variacao, "Variação"))
+        return self.servico.ajustar_stock(
+            id_peca,
+            ler_inteiro(variacao, "Variação")
+        )
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def receber_stock(self, id_peca, quantidade, fornecedor, preco_compra):
         return self.servico.receber_stock(
             id_peca,
@@ -39,5 +53,6 @@ class PecaController:
             ler_decimal(preco_compra, "Preço de compra")
         )
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def eliminar(self, id_peca):
         self.servico.eliminar(id_peca)

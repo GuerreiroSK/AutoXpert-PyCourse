@@ -3,13 +3,15 @@ from unittest.mock import MagicMock
 
 from src.controllers.tecnico_controller import TecnicoController
 from src.models.tecnico_model import Tecnico
+from auth import criar_token
 
 
 class TestTecnicoController(unittest.TestCase):
 
     def setUp(self):
         self.servico = MagicMock()
-        self.controller = TecnicoController(self.servico)
+        token = criar_token("teste", "administrador")
+        self.controller = TecnicoController(self.servico, token)
 
     def test_listar_obter_e_eliminar_chamam_o_servico(self):
         self.controller.listar(True)

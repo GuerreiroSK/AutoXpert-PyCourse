@@ -16,6 +16,7 @@ class TestPecaView(unittest.TestCase):
 
         self.controller = MagicMock()
         self.controller.listar.return_value = []
+        self.controller.perfil_atual.return_value = "administrador"
 
     def pagina(self):
         return PecaView(self.janela, self.controller)

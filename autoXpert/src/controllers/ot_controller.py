@@ -1,5 +1,6 @@
 import sqlite3
 
+from src.rbac import require_perfil
 from src.models.ot_model import OrdemTrabalho
 from src.controllers.ots_base_controller import OtsBaseController
 
@@ -20,8 +21,9 @@ class OrdemTrabalhoController(OtsBaseController):
 
     MENSAGEM_FK = "A viatura ou o técnico indicados não existem"
 
-    def __init__(self, service):
+    def __init__(self, service, token=None):
         self.service = service
+        self.token = token
 
     # Os estados possíveis de uma OT, pela ordem do fluxo (RF06)
     def lista_estados(self):
@@ -30,6 +32,7 @@ class OrdemTrabalhoController(OtsBaseController):
     # ---------- Ordens de trabalho ----------
 
     # RF03 + RF05
+    @require_perfil("administrador", "rececionista", "tecnico")
     def criar_ot(self, id_viatura, id_tecnico, data_entrada, data_prev_saida,
                  descricao_avaria):
         try:
@@ -43,6 +46,7 @@ class OrdemTrabalhoController(OtsBaseController):
         except (ValueError, sqlite3.Error) as erro:
             return False, self._texto_do_erro(erro)
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def obter_ot(self, id_ot):
         try:
             return True, self.service.obter_ot(id_ot)
@@ -50,6 +54,7 @@ class OrdemTrabalhoController(OtsBaseController):
             return False, self._texto_do_erro(erro)
 
     # Obtém os dados completos de uma OT para apresentar na janela de detalhe.
+    @require_perfil("administrador", "rececionista", "tecnico")
     def obter_detalhe_ot(self, id_ot):
         try:
             detalhe = self.service.obter_detalhe_ot(id_ot)
@@ -59,6 +64,7 @@ class OrdemTrabalhoController(OtsBaseController):
 
     # RF06: se o novo estado for "Entregue", a data de saída real pode vir vazia
     # (o service usa a data de hoje)
+    @require_perfil("administrador", "rececionista", "tecnico")
     def mudar_estado(self, id_ot, novo_estado, data_saida_real=""):
         try:
             ot = self.service.mudar_estado(
@@ -69,6 +75,7 @@ class OrdemTrabalhoController(OtsBaseController):
             return False, self._texto_do_erro(erro)
 
     # RF05
+    @require_perfil("administrador", "rececionista", "tecnico")
     def atribuir_tecnico(self, id_ot, id_tecnico):
         try:
             ot = self.service.atribuir_tecnico(
@@ -80,6 +87,7 @@ class OrdemTrabalhoController(OtsBaseController):
     # ---------- Listagens e pesquisas ----------
 
     # Todas as OTs, as mais recentes primeiro
+    @require_perfil("administrador", "rececionista", "tecnico")
     def listar_todas(self):
         try:
             return True, self.service.pesquisar_ots()
@@ -87,6 +95,7 @@ class OrdemTrabalhoController(OtsBaseController):
             return False, self._texto_do_erro(erro)
 
     # RF14
+    @require_perfil("administrador", "rececionista", "tecnico")
     def listar_em_curso(self):
         try:
             return True, self.service.listar_em_curso()
@@ -94,6 +103,7 @@ class OrdemTrabalhoController(OtsBaseController):
             return False, self._texto_do_erro(erro)
 
     # RF07
+    @require_perfil("administrador", "rececionista", "tecnico")
     def historico_por_matricula(self, matricula):
         try:
             return True, self.service.historico_por_matricula(matricula)
@@ -101,6 +111,7 @@ class OrdemTrabalhoController(OtsBaseController):
             return False, self._texto_do_erro(erro)
 
     # RF12: os campos que vierem vazios são ignorados
+    @require_perfil("administrador", "rececionista", "tecnico")
     def pesquisar(self, data_inicio="", data_fim="", estado="", id_tecnico=""):
         try:
             ots = self.service.pesquisar_ots(

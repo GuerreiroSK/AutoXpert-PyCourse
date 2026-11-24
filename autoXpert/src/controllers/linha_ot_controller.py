@@ -2,6 +2,7 @@ import sqlite3
 
 from src.models.linha_ot_model import LinhaOT
 from src.controllers.ots_base_controller import OtsBaseController
+from src.rbac import require_perfil
 
 
 class LinhaOTController(OtsBaseController):
@@ -14,13 +15,15 @@ class LinhaOTController(OtsBaseController):
 
     MENSAGEM_FK = "A peça indicada não existe"
 
-    def __init__(self, service):
+    def __init__(self, service, token=None):
         self.service = service
+        self.token = token
 
     # Os tipos possíveis de linha: "mao_obra" e "peca" (RF04)
     def lista_tipos_linha(self):
         return list(LinhaOT.TIPOS)
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def listar_linhas(self, id_ot):
         try:
             return True, self.service.listar_linhas(id_ot)
@@ -29,6 +32,7 @@ class LinhaOTController(OtsBaseController):
 
     # RF04 + RF13: depois de adicionar, o service recalcula o custo da OT.
     # Aceita vírgula ou ponto nos números (40,5 ou 40.5).
+    @require_perfil("administrador", "rececionista", "tecnico")
     def adicionar_linha(self, id_ot, tipo, descricao, quantidade, preco_unitario,
                         horas_trabalhadas="", id_peca=""):
         try:
@@ -44,6 +48,7 @@ class LinhaOTController(OtsBaseController):
         except (ValueError, sqlite3.Error) as erro:
             return False, self._texto_do_erro(erro)
 
+    @require_perfil("administrador", "rececionista", "tecnico")
     def remover_linha(self, id_linha):
         try:
             self.service.remover_linha(id_linha)

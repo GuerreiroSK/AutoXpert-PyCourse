@@ -123,29 +123,40 @@ class TestTema(unittest.TestCase):
         self.assertEqual(fonte.cget("size"), 10)
         self.assertEqual(fonte.cget("weight"), "bold")
 
-    def test_arranque_aplica_tema_antes_de_criar_menu(self):
+
+    def test_arranque_aplica_tema_antes_de_criar_autenticacao(self):
         raiz = MagicMock()
         chamadas = MagicMock()
         caminho = Path(__file__).resolve().parent.parent / "main.py"
-        # O arranque passa agora pelo login: simulamos um utilizador válido para o teste
-        # não abrir janelas de diálogo reais (ficava à espera de alguém para escrever).
+
         ligacao = MagicMock()
         ligacao.execute.return_value.fetchone.return_value = [1]
+
         with patch("tkinter.Tk", return_value=raiz), \
                 patch("db.connection.inicializar_bd"), \
                 patch("db.connection.get_connection", return_value=ligacao), \
-                patch("tkinter.simpledialog.askstring", return_value="admin"), \
-                patch("auth.autenticar",
-                      return_value={"login": "admin", "perfil": "administrador"}), \
                 patch("src.views.tema.aplicar_tema") as aplicar, \
-                patch("src.views.menu_principal_view.MenuPrincipalView") as menu:
+                patch(
+                    "src.views.autenticacao_view.ajustar_janela"
+                ), \
+                patch(
+                    "src.views.autenticacao_view.AutenticacaoView"
+                ) as autenticacao:
+
             chamadas.attach_mock(aplicar, "aplicar")
-            chamadas.attach_mock(menu, "menu")
-            runpy.run_path(str(caminho))
+            chamadas.attach_mock(autenticacao, "autenticacao")
+
+            namespace = runpy.run_path(
+                str(caminho),
+                run_name="autoxpert_test"
+            )
+            namespace["main"]()
 
         aplicar.assert_called_once_with(raiz)
+        autenticacao.assert_called_once()
         self.assertEqual(chamadas.mock_calls[0][0], "aplicar")
-        self.assertEqual(chamadas.mock_calls[1][0], "menu")
+        self.assertEqual(chamadas.mock_calls[1][0], "autenticacao")
+
 
     def test_cores_distinguem_perigo_em_todos_os_estados(self):
         for nome, normal, ativa in (

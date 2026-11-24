@@ -44,26 +44,76 @@ class FaturaView:
         self.janela = criar_janela(self.raiz, "AutoXpert - Faturação", 1300, 650)
         criar_cabecalho(self.janela, "Faturação")
 
+
+        # Consultar o perfil do utilizador autenticado.
+        perfil = self.controller.perfil_atual()
+
+        # O técnico não tem acesso à faturação.
+        if perfil not in ("administrador", "rececionista"):
+            messagebox.showerror(
+                "Acesso negado",
+                "Não tem permissão para aceder à faturação.",
+                parent=self.raiz
+            )
+            self.janela.destroy()
+            self.janela = None
+            return
+
         barra_botoes = ttk.Frame(self.janela, padding=(10, 10, 10, 0))
         barra_botoes.pack(fill="x")
-        ttk.Button(barra_botoes, text="Gerar fatura de uma OT",
-                   command=self.gerar_fatura).pack(side="left", padx=(0, 5))
-        ttk.Button(barra_botoes, text="Nova fatura manual",
-                   command=self.adicionar_fatura).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Marcar como paga",
-                   command=self.marcar_paga).pack(side="left", padx=5)
-        # Abre a janela com os dados completos da fatura selecionada.
-        ttk.Button(barra_botoes, text="Ver detalhe",
-                   command=self.ver_detalhe).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Eliminar", style="Perigo.TButton",
-                   command=self.eliminar_fatura).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Relatório mensal (Excel)",
-                   command=self.exportar_relatorio).pack(side="left", padx=5)
-        # Botão para exportar as faturas apresentadas na tabela.
-        ttk.Button(barra_botoes, text="Exportar CSV",
-                   command=self.exportar_csv).pack(side="left", padx=5)
-        ttk.Button(barra_botoes, text="Fechar",
-                   command=self.janela.destroy).pack(side="right")
+
+        # Funcionalidades disponíveis para administrador e rececionista.
+        ttk.Button(
+            barra_botoes,
+            text="Gerar fatura de uma OT",
+            command=self.gerar_fatura
+        ).pack(side="left", padx=(0, 5))
+
+        ttk.Button(
+            barra_botoes,
+            text="Nova fatura manual",
+            command=self.adicionar_fatura
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            barra_botoes,
+            text="Ver detalhe",
+            command=self.ver_detalhe
+        ).pack(side="left", padx=5)
+
+        # Funcionalidades exclusivas do administrador.
+        if perfil == "administrador":
+            ttk.Button(
+                barra_botoes,
+                text="Marcar como paga",
+                command=self.marcar_paga
+            ).pack(side="left", padx=5)
+
+            ttk.Button(
+                barra_botoes,
+                text="Eliminar",
+                style="Perigo.TButton",
+                command=self.eliminar_fatura
+            ).pack(side="left", padx=5)
+
+            ttk.Button(
+                barra_botoes,
+                text="Relatório mensal (Excel)",
+                command=self.exportar_relatorio
+            ).pack(side="left", padx=5)
+
+            ttk.Button(
+                barra_botoes,
+                text="Exportar CSV",
+                command=self.exportar_csv
+            ).pack(side="left", padx=5)
+
+        ttk.Button(
+            barra_botoes,
+            text="Fechar",
+            command=self.janela.destroy
+        ).pack(side="right")
+
 
         self.barra = criar_barra_estado(self.janela)
 
@@ -79,9 +129,11 @@ class FaturaView:
 
     # ================= Ações =================
 
+    
     def listar_faturas(self):
         faturas = self.controller.listar_faturas()
         linhas = []
+
         for f in faturas:
             if f.pago:
                 pago = "Sim"
@@ -93,6 +145,7 @@ class FaturaView:
         # Não inserimos na tabela diretamente: a PesquisaTabela guarda a lista completa,
         # mostra só o que corresponde à pesquisa e trata das cores das linhas.
         self.pesquisa.definir_linhas(linhas)
+
 
     # Chamada pela PesquisaTabela sempre que a tabela é filtrada
     def mostrar_contagem(self, visiveis, total):
